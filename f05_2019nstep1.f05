@@ -1,0 +1,47 @@
+       program_year=2019 program_version=1
+*   1 mcdfgmelabel
+    scfmdf max  :
+    mod_lightspeed=n
+    nz=mcdfgmeatomicnumber
+    mdf  opt_ener=todo  modfilname_ener=n modfilname_wf=n do_scf=y     
+    Breit=full  mag_scf=y  ret_scf=y
+    qedstpg_n4=n
+    vacpol_scf=y
+    energy
+#    use_mcdfener=y
+#    opt_relax=y                                                         
+    ret_Lorentz=y
+    opt_qedel=y :
+# ":" above is for ilams taken to be the default value
+    mod_mesh=n
+#    hx=0.012 r(1)=0.001 amesh=0.01 :
+    exotic=n
+    use_nms=y
+    mod_nuc=n
+    project=n
+#    cgt_order_vint=y order=6
+    cgt_order_vint=n
+    def_config=given
+    nbel=mcdfgmeelectronnb jjt=mcdfgmejj  :
+c  1 mcdfgmeconfiguration:
+end
+# initial state parameters
+    neigv=mcdfgmeneigv   icmul=0   iprfgr=0
+    norbsc=00  ndep=0   nlec=0   nec=1  :
+    nstep=10
+    n y n 50  z=mcdfgmeatomicnumber  1.D-2  0.2  1.  1.
+    n y n 50  z=mcdfgmeatomicnumber  3.D-3  0.2  1.  1.
+    n y n 50  z=mcdfgmeatomicnumber  1.D-3  0.3  1.  1.
+    n y n 50  z=mcdfgmeatomicnumber  3.D-4  0.3  1.  1.
+    n y n 50  z=mcdfgmeatomicnumber  1.D-4  0.5  1.  1.
+    n y n 50  z=mcdfgmeatomicnumber  3.D-5  0.5  1.  1.
+    n y n 50  z=mcdfgmeatomicnumber  1.D-5  0.5  1.  1.
+    n y n 100  z=mcdfgmeatomicnumber  4.D-6  1.  1.  1.
+    n y n 100  z=mcdfgmeatomicnumber  2.D-6  1.  1.  1.
+    n y n 200  z=mcdfgmeatomicnumber  1.D-6  1.  1.  1.
+    lregul=n  modtest=n
+    modsolv_orb=n
+    mod_odlm=n
+# data for uwfrdf
+    :
+**
