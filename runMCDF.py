@@ -1,7 +1,7 @@
 import os, sys, platform
 import subprocess
 import shutil
-import copy
+import re
 
 # MCDFGME executable file name
 exe_file = 'mcdfgme2019.exe'
@@ -243,8 +243,179 @@ def setupTemplates():
         f05AugTemplate_nuc = ''.join(template.readlines())
 
 
+def loadElectronConfigs():
+    global lines_conf, arr_conf, nb_lines_conf, lines_fir, arr_fir, nb_lines_fir, final_configuration, shell_array, configuration_string
+    global configuration_1hole, configuration_2holes, shell_array_2holes
+    
+    count = 0
+    
+    if label_auto:
+        with open('Conf.csv', 'r') as f:
+            lines_conf = f.readlines()
+
+        enum = int(atomic_number) - 1
+        arr_conf = [int(x) for x in lines_conf[enum].strip().split(',')]
+        nb_lines_conf = len(lines_conf)
+
+        with open('Fir.csv', 'r') as f:
+            lines_fir = f.readlines()
+
+        arr_fir = [int(x) for x in lines_fir[enum].strip().split(',')]
+        nb_lines_fir = len(lines_fir)
+
+        final_configuration = []
+        shell_array = []
+        for i in range(len(arr_conf)):
+            if arr_conf[i] != 0:
+                final_configuration.append(arr_conf[i])
+                shell_array.append(shells[i])
+                count += 1
+
+
+        count_au = 0
+
+        configuration_string = ''
+        for j in range(count):
+            configuration_string += "(" + shell_array[j] + ")" + str(final_configuration[j]) + " "
+        
+            b = final_configuration[:]
+            b[j] = b[j] - 1
+            
+            configuration_1hole.append('')
+            
+            if count <= 10:
+                for g in range(count):
+                    configuration_1hole[j] += "(" + shell_array[g] + ")" + str(b[g]) + " "
+                
+            else:
+                for g in range(9):
+                    configuration_1hole[j] += "(" + shell_array[g] + ")" + str(b[g]) + " "
+                
+                configuration_1hole[j]+="\\\n    "
+                for g in range(9, count):
+                    configuration_1hole[j] += "(" + shell_array[g] + ")" + str(b[g]) + " "
+                
+            
+            b = final_configuration[:]
+            b[j] = b[j] - 1
+
+            if b[j] > 0:
+                for k in range(j, count):
+                    if b[k] > 0:
+                        b = final_configuration[:]
+                        
+                        b[j] = b[j]-1
+                        b[k] = b[k]-1
+                        
+                        configuration_2holes.append('')
+                        
+                        if count <= 10:
+                            for g in range(count):
+                                configuration_2holes[count_au] += "(" + shell_array[g] + ")" + str(b[g]) + " "
+                            
+                        else:
+                            for g in range(9):
+                                configuration_2holes[count_au] += "(" + shell_array[g] + ")" + str(b[g]) + " "
+                            
+                            configuration_2holes[count_au] += "\\\n    "
+                            
+                            for g in range(9, count):
+                                configuration_2holes[count_au] += "(" + shell_array[g] + ")" + str(b[g]) + " "
+                            
+                        
+                        shell_array_2holes[count_au] = shell_array[k] + "_" + shell_array[j]
+                        
+                        count_au += 1
+        
+        print("Loaded the automatically generated electron configuration:\n\n")
+        print("Element Z=" + atomic_number + "\n")
+        print("Atom ground-state Neutral configuration:\n" + configuration_string + "\n")
+        print("Number of occupied orbitals = " + str(count) + "\n")
+    else:
+        if os.path.exists(directory_name + "/backup_" + file_conf_rad) and os.path.exists(directory_name + "/backup_" + file_conf_aug):
+            configuration_1hole = []
+            shell_array = []
+            
+            with open(file_conf_rad, "r") as f:
+                for line in f:
+                    colum1, colum2 = line.strip().split(",")
+                    configuration_1hole.append(colum1)
+                    shell_array.append(colum2)
+                    count += 1
+            
+            configuration_2holes = []
+            shell_array_2holes = []
+            
+            with open(file_conf_aug, "r") as f:
+                for line in f:
+                    colum1, colum2 = line.strip().split(",")
+                    configuration_2holes.append(colum1)
+                    shell_array_2holes.append(colum2)
+            
+            print("Configuration files correctly loaded !!!\n")
+        else:
+            print("Configuration files do not exist !!! Place them in the existing calculations folder with the names:")
+            print("backup_" + file_conf_rad)
+            print("backup_" + file_conf_aug)
+            sys.exit(1)
+
+
 def checkPartial():
+    global directory_name, parallel_max_length, machine_type, number_max_of_threads
+    global label_auto, atomic_number, nelectrons, nuc_massyorn, nuc_mass, nuc_model, number_of_threads
     global calculated1holeStates, calculated2holesStates
+    
+    
+    print "Enter directory name for the calculations: ",
+    inp = raw_input().strip()
+    while inp == '':
+        print("\n No input entered!!!\n\n")
+        print "Enter directory name for the calculations: ",
+        inp = raw_input().strip()
+
+    while not os.path.exists(inp):
+        print("\n Directory name does not exist!!!\n\n")
+        print "Please input the name for the existing calculations directory: ",
+        inp = raw_input().strip()
+    
+    
+    directory_name = inp
+    
+    parallel_max_length = int(subprocess.check_output(['getconf', 'ARG_MAX']).strip())
+    
+    machine_type = platform.uname()[0]
+    
+    if machine_type == 'Darwin':
+        number_max_of_threads = subprocess.check_output(['sysctl', '-n', 'hw.ncpu']).strip()
+    else:
+        number_max_of_threads = subprocess.check_output(['nproc']).strip()
+    
+    setupFiles()
+    
+    
+    with open(file_parameters, "r") as fp:
+        for line in fp:
+            if "Electron configurations are:" in line:
+                label_auto = line.replace("Electron configurations are:", "").strip() == "automatic"
+            elif "Atomic number Z= " in line:
+                atomic_number = line.replace("Atomic number Z= ", "").strip()
+            elif "Number of electrons:" in line:
+                nelectrons = line.replace("Number of electrons:", "").strip()
+            elif "Calculations performed with standard mass:" in line:
+                nuc_massyorn = line.replace("Calculations performed with standard mass:", "").strip()
+            elif "Nuclear mass:" in line:
+                nuc_mass = int(line.replace("Nuclear mass:", "").strip())
+            elif "Nuclear model:" in line:
+                nuc_model = line.replace("Nuclear model:", "").strip()
+            elif "Number of considered threads in the calculation=" in line:
+                number_of_threads = line.replace("Number of considered threads in the calculation=", "").strip()
+    
+    if int(number_of_threads) > int(number_max_of_threads):
+        print("Previous number of threads is greater than the current machine's maximum. Proceding with the current maximum threads...\n")
+        number_of_threads = number_max_of_threads
+    
+    loadElectronConfigs()
+    
     
     def readStateList():
         global calculated1holeStates, calculated2holesStates
@@ -271,13 +442,13 @@ def checkPartial():
                         last_calculated_cycle_1hole = 2
                     elif "Third Cycle Last Calculated:" in line:
                         last_calculated_cycle_1hole = 3
-                    elif "Fourth Cycle Last Calculated:" in line:
+                    elif "Fourth Cycle Last Calculated:" in line or "CalculationFinalized" in line:
                         last_calculated_cycle_1hole = 4
                     elif last_calculated_cycle_1hole > 0 and line != "\n":
-                        last_calculated_state_1hole = [(int(qn) for qn in line.strip().split(", "))]
+                        last_calculated_state_1hole = [tuple(int(qn) for qn in line.strip().split(", "))]
                     
                     if not complete_1hole:
-                        calculated1holeStates.append([(int(qn) for qn in line.strip().split(", "))])
+                        calculated1holeStates.append([tuple(int(qn) for qn in line.strip().split(", "))])
         
         with open(file_cycle_log_2holes, "r") as calculated2holes:
             if "2 holes states discovery done." in calculated2holes.readline():
@@ -292,13 +463,13 @@ def checkPartial():
                         last_calculated_cycle_2holes = 2
                     elif "Third Cycle Last Calculated:" in line:
                         last_calculated_cycle_2holes = 3
-                    elif "Fourth Cycle Last Calculated:" in line:
+                    elif "Fourth Cycle Last Calculated:" in line or "CalculationFinalized" in line:
                         last_calculated_cycle_2holes = 4
                     elif last_calculated_cycle_2holes > 0 and line != "\n":
-                        last_calculated_state_2holes = [(int(qn) for qn in line.strip().split(", "))]
+                        last_calculated_state_2holes = [tuple(int(qn) for qn in line.strip().split(", "))]
                     
                     if not complete_2holes:
-                        calculated2holesStates.append([(int(qn) for qn in line.strip().split(", "))])
+                        calculated2holesStates.append([tuple(int(qn) for qn in line.strip().split(", "))])
         
         return complete_1hole, complete_2holes, last_calculated_cycle_1hole, last_calculated_state_1hole, last_calculated_cycle_2holes, last_calculated_state_2holes
     
@@ -310,27 +481,27 @@ def checkPartial():
         complete_sorted_2holes = False
         
         with open(file_sorted_1hole, "r") as sorted_1hole:
-            if len(sorted_1hole.readlines()) - 1 == len(calculated1holeStates):
+            if len(sorted_1hole.readlines()) == len(calculated1holeStates):
                 complete_sorted_1hole = True
         
         if complete_sorted_1hole:
             with open(file_sorted_1hole, "r") as sorted_1hole:
                 calculated1holeStates = []
                 for line in sorted_1hole:
-                    state_nums = (int(qn) for qn in line.strip().split("; ")[0].split(", "))
-                    state_parameters = (par if i == 0 else float(par) for i, par in enumerate(line.strip().split("; ")[0].split(", ")))
+                    state_nums = tuple(int(qn) for qn in line.strip().split("; ")[0].split(", "))
+                    state_parameters = tuple(par if i == 0 else float(par) for i, par in enumerate(line.strip().split("; ")[1].split(", ")))
                     calculated1holeStates.append([state_nums, state_parameters])
         
         with open(file_sorted_2holes, "r") as sorted_2holes:
-            if len(sorted_2holes.readlines()) - 1 == len(calculated2holesStates):
+            if len(sorted_2holes.readlines()) == len(calculated2holesStates):
                 complete_sorted_2holes = True
         
         if complete_sorted_2holes:
             with open(file_sorted_2holes, "r") as sorted_2holes:
                 calculated2holesStates = []
                 for line in sorted_2holes:
-                    state_nums = (int(qn) for qn in line.strip().split("; ")[0].split(", "))
-                    state_parameters = (par if i == 0 else float(par) for i, par in enumerate(line.strip().split("; ")[0].split(", ")))
+                    state_nums = tuple(int(qn) for qn in line.strip().split("; ")[0].split(", "))
+                    state_parameters = tuple(par if i == 0 else float(par) for i, par in enumerate(line.strip().split("; ")[1].split(", ")))
                     calculated2holesStates.append([state_nums, state_parameters])
         
         return complete_sorted_1hole, complete_sorted_2holes
@@ -342,8 +513,8 @@ def checkPartial():
                 rad_calculated.readline()
                 for line in rad_calculated:
                     if line != "\n":
-                        state_i = (int(qn) for qn in line.strip().split("; ")[0].split(", "))
-                        state_f = (int(qn) for qn in line.strip().split("; ")[1].split(", "))
+                        state_i = tuple(int(qn) for qn in line.strip().split(" => ")[0].split(", "))
+                        state_f = tuple(int(qn) for qn in line.strip().split(" => ")[1].split(", "))
                         
                         last_rad_calculated = [state_i, state_f]
         else:
@@ -354,8 +525,8 @@ def checkPartial():
                 aug_calculated.readline()
                 for line in aug_calculated:
                     if line != "\n":
-                        state_i = (int(qn) for qn in line.strip().split("; ")[0].split(", "))
-                        state_f = (int(qn) for qn in line.strip().split("; ")[1].split(", "))
+                        state_i = tuple(int(qn) for qn in line.strip().split(" => ")[0].split(", "))
+                        state_f = tuple(int(qn) for qn in line.strip().split(" => ")[1].split(", "))
                         
                         last_aug_calculated = [state_i, state_f]
         else:
@@ -366,8 +537,8 @@ def checkPartial():
                 sat_calculated.readline()
                 for line in sat_calculated:
                     if line != "\n":
-                        state_i = (int(qn) for qn in line.strip().split("; ")[0].split(", "))
-                        state_f = (int(qn) for qn in line.strip().split("; ")[1].split(", "))
+                        state_i = tuple(int(qn) for qn in line.strip().split(" => ")[0].split(", "))
+                        state_f = tuple(int(qn) for qn in line.strip().split(" => ")[1].split(", "))
                         
                         last_sat_calculated = [state_i, state_f]
         else:
@@ -380,32 +551,34 @@ def checkPartial():
         print("$\nERROR!!!!!\n")
         print("\nFile DOES NOT EXIST \nPlease place MCDFGME*.exe file alongside this script\n")
     else:
+        print("\n############## Energy Calculations with MCDGME code  ##############\n\n")
+        
         if any([os.path.isfile(file_calculated_radiative), os.path.isfile(file_calculated_auger), os.path.isfile(file_calculated_sat)]):
-            print("Found files with the last calculated transitions.")
+            print("\nFound files with the last calculated transitions.")
             
             if os.path.isfile(file_cycle_log_1hole) and os.path.isfile(file_cycle_log_2holes):
-                print("Found file with the list of discovered states.")
+                print("\nFound file with the list of discovered states.")
                 complete_1hole, complete_2holes, last_calculated_cycle_1hole, last_calculated_state_1hole, last_calculated_cycle_2holes, last_calculated_state_2holes = readStateList()
                 
                 if complete_1hole and complete_2holes and last_calculated_cycle_1hole == 4 and last_calculated_cycle_2holes == 4 and last_calculated_state_1hole[0] == calculated1holeStates[-1][0] and last_calculated_state_2holes[0] == calculated2holesStates[-1][0]:
-                    print("Verifyed that the file with the list of calculated states is consistent.")
+                    print("\nVerifyed that the file with the list of calculated states is consistent.")
                     print("Proceding with this list.")
                 else:
-                    print("Error while checking the file with calculated states.\n")
-                    print("Flag -> Value ; Expected:")
+                    print("\nError while checking the file with calculated states.\n")
+                    print("Flag                          -> Value ; Expected:")
                     print("Completed 1 hole              -> " + str(complete_1hole) + " ; True")
                     print("Completed 2 holes             -> " + str(complete_2holes) + " ; True")
                     print("Last calculated cycle 1 hole  -> " + str(last_calculated_cycle_1hole) + "    ; 4")
                     print("Last calculated cycle 2 holes -> " + str(last_calculated_cycle_2holes) + "    ; 4")
-                    print("Last calculated state 1 hole  -> " + str(last_calculated_state_1hole[0]) + " ; " + calculated1holeStates[-1][0])
-                    print("Last calculated state 2 holes -> " + str(last_calculated_state_2holes[0]) + " ; " + calculated2holesStates[-1][0])
+                    print("Last calculated state 1 hole  -> " + ', '.join([str(qn) for qn in last_calculated_state_1hole[0]]) + " ; " + ', '.join([str(qn) for qn in calculated1holeStates[-1][0]]))
+                    print("Last calculated state 2 holes -> " + ', '.join([str(qn) for qn in last_calculated_state_2holes[0]]) + " ; " + ', '.join([str(qn) for qn in calculated2holesStates[-1][0]]))
                     
                     print("\nPicking up from the last calculated states...\n")
                     
                     return complete_1hole, complete_2holes, last_calculated_cycle_1hole, last_calculated_cycle_2holes, last_calculated_state_1hole[0], last_calculated_state_2holes[0]
                 
             else:
-                print("File with the list of discovered states is missing: ")
+                print("\nFile with the list of discovered states is missing: ")
                 print("1 hole states -> " + file_cycle_log_1hole)
                 print("2 holes states -> " + file_cycle_log_2holes)
                 print("\nReverting to full calculation...\n")
@@ -413,12 +586,12 @@ def checkPartial():
                 return 1
             
             if os.path.isfile(file_sorted_1hole) and os.path.isfile(file_sorted_2holes):
-                print("Found files with energy sorted calculated states.")
+                print("\nFound files with energy sorted calculated states.")
                 
                 complete_sorted_1hole, complete_sorted_2holes = readSortedStates()
                 
                 if complete_sorted_1hole and complete_sorted_2holes:
-                    print("Energy sorted calculated states files are complete.")
+                    print("\nEnergy sorted calculated states files are complete.")
                     print("Proceding while using this state list.")
                     
                     last_rad_calculated, last_aug_calculated, last_sat_calculated = readTransitions()
@@ -450,7 +623,7 @@ def checkPartial():
                     
                     return last_rad_calculated, last_aug_calculated, last_sat_calculated
                 else:
-                    print("Error while reading the sorted states files.")
+                    print("\nError while reading the sorted states files.")
                     print("There was a missmatch between the length of sorted states and calculated states.")
                     print("Continuing with the full list of states and resorting them.")
                     
@@ -459,31 +632,31 @@ def checkPartial():
             return 0
         
         if os.path.isfile(file_sorted_1hole) and os.path.isfile(file_sorted_2holes):
-            print("Found files with the sorted list of calculated states.")
+            print("\nFound files with the sorted list of calculated states.")
             
             if os.path.isfile(file_cycle_log_1hole) and os.path.isfile(file_cycle_log_2holes):
                 print("Found file with the list of discovered states.")
                 complete_1hole, complete_2holes, last_calculated_cycle_1hole, last_calculated_state_1hole, last_calculated_cycle_2holes, last_calculated_state_2holes = readStateList()
                 
                 if complete_1hole and complete_2holes and last_calculated_cycle_1hole == 4 and last_calculated_cycle_2holes == 4 and last_calculated_state_1hole[0] == calculated1holeStates[-1][0] and last_calculated_state_2holes[0] == calculated2holesStates[-1][0]:
-                    print("Verifyed that the file with the list of calculated states is consistent.")
+                    print("\nVerifyed that the file with the list of calculated states is consistent.")
                     print("Proceding with this list.")
                 else:
-                    print("Error while checking the file with calculated states.\n")
-                    print("Flag -> Value ; Expected:")
+                    print("\nError while checking the file with calculated states.\n")
+                    print("Flag                          -> Value ; Expected:")
                     print("Completed 1 hole              -> " + str(complete_1hole) + " ; True")
                     print("Completed 2 holes             -> " + str(complete_2holes) + " ; True")
                     print("Last calculated cycle 1 hole  -> " + str(last_calculated_cycle_1hole) + "    ; 4")
                     print("Last calculated cycle 2 holes -> " + str(last_calculated_cycle_2holes) + "    ; 4")
-                    print("Last calculated state 1 hole  -> " + str(last_calculated_state_1hole[0]) + " ; " + calculated1holeStates[-1][0])
-                    print("Last calculated state 2 holes -> " + str(last_calculated_state_2holes[0]) + " ; " + calculated2holesStates[-1][0])
+                    print("Last calculated state 1 hole  -> " + str(last_calculated_state_1hole[0]) + " ; " + str(calculated1holeStates[-1][0]))
+                    print("Last calculated state 2 holes -> " + str(last_calculated_state_2holes[0]) + " ; " + str(calculated2holesStates[-1][0]))
                     
                     print("\nPicking up from the last calculated states...\n")
                     
                     return complete_1hole, complete_2holes, last_calculated_cycle_1hole, last_calculated_cycle_2holes, last_calculated_state_1hole[0], last_calculated_state_2holes[0]
                 
             else:
-                print("File with the list of discovered states is missing: ")
+                print("\nFile with the list of discovered states is missing: ")
                 print("1 hole states -> " + file_cycle_log_1hole)
                 print("2 holes states -> " + file_cycle_log_2holes)
                 print("\nReverting to full calculation...\n")
@@ -493,12 +666,12 @@ def checkPartial():
             complete_sorted_1hole, complete_sorted_2holes = readSortedStates()
             
             if complete_sorted_1hole and complete_sorted_2holes:
-                print("Energy sorted calculated states files are complete.")
+                print("\nEnergy sorted calculated states files are complete.")
                 print("Proceding while using this state list.")
                 
                 return 3
             else:
-                print("Error while reading the sorted states files.")
+                print("\nError while reading the sorted states files.")
                 print("There was a missmatch between the length of sorted states and calculated states.")
                 print("Continuing with the full list of states and resorting them.")
                 
@@ -506,17 +679,17 @@ def checkPartial():
             
         
         if os.path.isfile(file_cycle_log_1hole) and os.path.isfile(file_cycle_log_2holes):
-            print("Found file with the list of discovered states.")
+            print("\nFound file with the list of discovered states.")
             complete_1hole, complete_2holes, last_calculated_cycle_1hole, last_calculated_state_1hole, last_calculated_cycle_2holes, last_calculated_state_2holes = readStateList()
             
             if complete_1hole and complete_2holes and last_calculated_cycle_1hole == 4 and last_calculated_cycle_2holes == 4 and last_calculated_state_1hole[0] == calculated1holeStates[-1][0] and last_calculated_state_2holes[0] == calculated2holesStates[-1][0]:
-                print("Verifyed that the file with the list of calculated states is consistent.")
+                print("\nVerifyed that the file with the list of calculated states is consistent.")
                 print("Proceding with this list.")
                 
                 return 0
             else:
-                print("Error while checking the file with calculated states.\n")
-                print("Flag -> Value ; Expected:")
+                print("\nError while checking the file with calculated states.\n")
+                print("Flag                          -> Value ; Expected:")
                 print("Completed 1 hole              -> " + str(complete_1hole) + " ; True")
                 print("Completed 2 holes             -> " + str(complete_2holes) + " ; True")
                 print("Last calculated cycle 1 hole  -> " + str(last_calculated_cycle_1hole) + "    ; 4")
@@ -528,7 +701,7 @@ def checkPartial():
                 
                 return complete_1hole, complete_2holes, last_calculated_cycle_1hole, last_calculated_cycle_2holes, last_calculated_state_1hole[0], last_calculated_state_2holes[0]
         else:
-            print("Files with the previously calculated states directories could not be found.")
+            print("\nFiles with the previously calculated states directories could not be found.")
             print("Please do a full calculation first.")
             sys.exit(1)
 
@@ -609,10 +782,10 @@ def checkOutput(currDir, currFileName):
             if "For orbital" in line:
                 failed_orbital = line.strip().split()[-1].strip()
     
-    return first, failed_orbital, max(Overlaps), higher_config, highest_percent, accuracy, Diff, welt
+    return first, failed_orbital, max(Overlaps) if len(Overlaps) > 0 else 1.0, higher_config, highest_percent, accuracy, Diff, welt
 
 
-def configureTransitionInputFile(f05RadTemplate_nuc, \
+def configureTransitionInputFile(template, \
                                 currDir, currFileName, \
                                 currDir_i, currFileName_i, \
                                 config_i, jj_i, eigv_i, ne_i, \
@@ -674,11 +847,16 @@ def configureTransitionInputFile(f05RadTemplate_nuc, \
     
 
 
-def configureStateInputFile(template, currDir, currFileName, config, jj, eigv, ne = nelectrons, failed_orbs = []):
+def configureStateInputFile(template, currDir, currFileName, config, jj, eigv, ne = '', failed_orbs = []):
+    if ne == '':
+        nelec = nelectrons
+    else:
+        nelec = ne
+    
     fileString = template \
                 .replace("mcdfgmelabel", "Z=" + atomic_number + " " + config + " 2J=" + str(jj) + " neig=" + str(eigv)) \
                 .replace("mcdfgmeatomicnumber", atomic_number) \
-                .replace("mcdfgmeelectronnb", str(ne)) \
+                .replace("mcdfgmeelectronnb", str(nelec)) \
                 .replace("mcdfgmejj", str(jj)) \
                 .replace("mcdfgmeconfiguration", config) \
                 .replace("mcdfgmeneigv", str(eigv)) \
@@ -719,7 +897,7 @@ def executeBatchStateCalculation(parallel_paths, log_file = '', state_list = [],
         if log_file != '' and state_list != [] and log_line_header != '':
             with open(log_file, "a") as log:
                 log.write(log_line_header)
-                log.write(', '.join(state_list[-1][0]) + "\n")
+                log.write(', '.join([str(qn) for qn in state_list[-1][0]]) + "\n")
     else:
         for pl in range(len(parallel_paths) / parallel_max_paths):
             subprocess.check_output(['parallel -j' + number_of_threads + ' --bar ' + "'cd {//} && {/} && cd -'" + ' ::: ' + ' '.join(parallel_paths[(pl * parallel_max_paths):((pl + 1) * parallel_max_paths)])], shell=True)
@@ -729,14 +907,14 @@ def executeBatchStateCalculation(parallel_paths, log_file = '', state_list = [],
                     if pl == 0:
                         log.write(log_line_header)
                     
-                    log.write(', '.join(state_list[((pl + 1) * parallel_max_paths) - 1][0]) + "\n")
+                    log.write(', '.join([str(qn) for qn in state_list[((pl + 1) * parallel_max_paths) - 1][0]]) + "\n")
         
         
         subprocess.check_output(['parallel -j' + number_of_threads + ' --bar ' + "'cd {//} && {/} && cd -'" + ' ::: ' + ' '.join(parallel_paths[((pl + 1) * parallel_max_paths):])], shell=True)
         
         if log_file != '' and state_list != [] and log_line_header != '':
             with open(log_file, "a") as log:
-                log.write(', '.join(state_list[-1][0]) + "\n")
+                log.write(', '.join([str(qn) for qn in state_list[-1][0]]) + "\n")
 
 
 def executeBatchTransitionCalculation(parallel_paths, \
@@ -759,7 +937,7 @@ def executeBatchTransitionCalculation(parallel_paths, \
         if log_file != '' and state_list != [] and log_line_header != '':
             with open(log_file, "a") as log:
                 log.write(log_line_header)
-                log.write(', '.join(state_list[-1][0]) + " => " + ', '.join(state_list[-1][1]) + "\n")
+                log.write(', '.join([str(qn) for qn in state_list[-1][0]]) + " => " + ', '.join([str(qn) for qn in state_list[-1][1]]) + "\n")
         
         # REMOVE THE .f09 WAVEFUNCTION FILES
         for wfi_dst, wff_dst in zip(parallel_initial_dst_paths, parallel_final_dst_paths):
@@ -786,7 +964,7 @@ def executeBatchTransitionCalculation(parallel_paths, \
                     if pl == 0:
                         log.write(log_line_header)
                     
-                    log.write(', '.join(state_list[((pl + 1) * parallel_max_paths) - 1][0]) + " => " + ', '.join(state_list[((pl + 1) * parallel_max_paths) - 1][1]) + "\n")
+                    log.write(', '.join([str(qn) for qn in state_list[((pl + 1) * parallel_max_paths) - 1][0]]) + " => " + ', '.join([str(qn) for qn in state_list[((pl + 1) * parallel_max_paths) - 1][1]]) + "\n")
             
             
             # REMOVE THE .f09 WAVEFUNCTION FILES IN THIS BATCH
@@ -810,7 +988,7 @@ def executeBatchTransitionCalculation(parallel_paths, \
         # COPY .f09 WAVEFUNCTION FILES FOR THE LAST BATCH
         if log_file != '' and state_list != [] and log_line_header != '':
             with open(log_file, "a") as log:
-                log.write(', '.join(state_list[-1][0]) + " => " + ', '.join(state_list[-1][1]) + "\n")
+                log.write(', '.join([str(qn) for qn in state_list[-1][0]]) + " => " + ', '.join([str(qn) for qn in state_list[-1][1]]) + "\n")
         
         
         # REMOVE THE .f09 WAVEFUNCTION FILES FOR THE LAST BATCH
@@ -820,6 +998,49 @@ def executeBatchTransitionCalculation(parallel_paths, \
         
     
     
+def writeResults1hole():
+    with open(file_cycle_log_1hole, "a") as log_1hole:
+        log_1hole.write("CalculationFinalized\n")
+    
+    with open(file_results, "a") as resultDump:
+        with open(file_final_results_1hole, "a") as stateResults_1hole:
+            with open(file_final_results, "a") as stateResults:
+                resultDump.write("Fourth Cycle 1 Hole states\nShell, Shell index, 2J, Eigv, Higher Configuration, Percentage, Overlap, Accuracy, Energy Difference, Energy Welton\n")
+                stateResults_1hole.write("Calculated 1 Hole states\nShell, Shell index, 2J, Eigv, Higher Configuration, Percentage, Overlap, Accuracy, Energy Difference, Energy Welton\n")
+                stateResults.write("Calculated 1 Hole states\nShell, Shell index, 2J, Eigv, Higher Configuration, Percentage, Overlap, Accuracy, Energy Difference, Energy Welton\n")
+                for state in calculated1holeStates:
+                    resultDump.write(shell_array[state[0][0]] + ", " + str(state[0][0]) + ", " + str(state[0][1]) + ", " + str(state[0][2]) + ", " + state[1][0] + ", " + str(state[1][1]) + ", " + str(state[1][2]) + ", " + str(state[1][3]) + ", " + str(state[1][4]) + ", " + str(state[1][5]) + "\n")
+                    stateResults_1hole.write(shell_array[state[0][0]] + ", " + str(state[0][0]) + ", " + str(state[0][1]) + ", " + str(state[0][2]) + ", " + state[1][0] + ", " + str(state[1][1]) + ", " + str(state[1][2]) + ", " + str(state[1][3]) + ", " + str(state[1][4]) + ", " + str(state[1][5]) + "\n")
+                    stateResults.write(shell_array[state[0][0]] + ", " + str(state[0][0]) + ", " + str(state[0][1]) + ", " + str(state[0][2]) + ", " + state[1][0] + ", " + str(state[1][1]) + ", " + str(state[1][2]) + ", " + str(state[1][3]) + ", " + str(state[1][4]) + ", " + str(state[1][5]) + "\n")
+                
+                stateResults_1hole.write("1 Hole by Hand\n")
+                stateResults.write("1 Hole by Hand\n")
+                for counter in radiative_by_hand:
+                    stateResults_1hole.write(shell_array[calculated1holeStates[counter][0][0]] + ", " + str(calculated1holeStates[counter][0][0]) + ", " + str(calculated1holeStates[counter][0][1]) + ", " + str(calculated1holeStates[counter][0][2]) + ", " + calculated1holeStates[counter][1][0] + ", " + str(calculated1holeStates[counter][1][1]) + ", " + str(calculated1holeStates[counter][1][2]) + ", " + str(calculated1holeStates[counter][1][3]) + ", " + str(calculated1holeStates[counter][1][4]) + ", " + str(calculated1holeStates[counter][1][5]) + "\n")
+                    stateResults.write(shell_array[calculated1holeStates[counter][0][0]] + ", " + str(calculated1holeStates[counter][0][0]) + ", " + str(calculated1holeStates[counter][0][1]) + ", " + str(calculated1holeStates[counter][0][2]) + ", " + calculated1holeStates[counter][1][0] + ", " + str(calculated1holeStates[counter][1][1]) + ", " + str(calculated1holeStates[counter][1][2]) + ", " + str(calculated1holeStates[counter][1][3]) + ", " + str(calculated1holeStates[counter][1][4]) + ", " + str(calculated1holeStates[counter][1][5]) + "\n")
+
+
+def writeResults2holes():
+    with open(file_cycle_log_2holes, "a") as log_2holes:
+        log_2holes.write("CalculationFinalized\n")
+    
+    with open(file_results, "a") as resultDump:
+        with open(file_final_results_2holes, "a") as stateResults_2holes:
+            with open(file_final_results, "a") as stateResults:
+                resultDump.write("Fourth Cycle 2 Hole states\nShell, Shell index, 2J, Eigv, Higher Configuration, Percentage, Overlap, Accuracy, Energy Difference, Energy Welton\n")
+                stateResults_2holes.write("Calculated 2 Hole states\nShell, Shell index, 2J, Eigv, Higher Configuration, Percentage, Overlap, Accuracy, Energy Difference, Energy Welton\n")
+                stateResults.write("Calculated 2 Hole states\nShell, Shell index, 2J, Eigv, Higher Configuration, Percentage, Overlap, Accuracy, Energy Difference, Energy Welton\n")
+                for state in calculated2holesStates:
+                    resultDump.write(shell_array_2holes[state[0][0]] + ", " + str(state[0][0]) + ", " + str(state[0][1]) + ", " + str(state[0][2]) + ", " + state[1][0] + ", " + str(state[1][1]) + ", " + str(state[1][2]) + ", " + str(state[1][3]) + ", " + str(state[1][4]) + ", " + str(state[1][5]) + "\n")
+                    stateResults_2holes.write(shell_array_2holes[state[0][0]] + ", " + str(state[0][0]) + ", " + str(state[0][1]) + ", " + str(state[0][2]) + ", " + state[1][0] + ", " + str(state[1][1]) + ", " + str(state[1][2]) + ", " + str(state[1][3]) + ", " + str(state[1][4]) + ", " + str(state[1][5]) + "\n")
+                    stateResults.write(shell_array_2holes[state[0][0]] + ", " + str(state[0][0]) + ", " + str(state[0][1]) + ", " + str(state[0][2]) + ", " + state[1][0] + ", " + str(state[1][1]) + ", " + str(state[1][2]) + ", " + str(state[1][3]) + ", " + str(state[1][4]) + ", " + str(state[1][5]) + "\n")
+                
+                stateResults_2holes.write("2 Hole by Hand\n")
+                stateResults.write("2 Hole by Hand\n")
+                for counter in auger_by_hand:
+                    stateResults_2holes.write(shell_array_2holes[calculated2holesStates[counter][0][0]] + ", " + str(calculated2holesStates[counter][0][0]) + ", " + str(calculated2holesStates[counter][0][1]) + ", " + str(calculated2holesStates[counter][0][2]) + ", " + calculated2holesStates[counter][1][0] + ", " + str(calculated2holesStates[counter][1][1]) + ", " + str(calculated2holesStates[counter][1][2]) + ", " + str(calculated2holesStates[counter][1][3]) + ", " + str(calculated2holesStates[counter][1][4]) + ", " + str(calculated2holesStates[counter][1][5]) + "\n")
+                    stateResults.write(shell_array_2holes[calculated2holesStates[counter][0][0]] + ", " + str(calculated2holesStates[counter][0][0]) + ", " + str(calculated2holesStates[counter][0][1]) + ", " + str(calculated2holesStates[counter][0][2]) + ", " + calculated2holesStates[counter][1][0] + ", " + str(calculated2holesStates[counter][1][1]) + ", " + str(calculated2holesStates[counter][1][2]) + ", " + str(calculated2holesStates[counter][1][3]) + ", " + str(calculated2holesStates[counter][1][4]) + ", " + str(calculated2holesStates[counter][1][5]) + "\n")
+
 
 def calculate1holeStates(starting_cycle = -1, starting_state = [(0, 0, 0)]):
     global calculated1holeStates, radiative_by_hand
@@ -902,15 +1123,14 @@ def calculate1holeStates(starting_cycle = -1, starting_state = [(0, 0, 0)]):
                 configureStateInputFile(f05Template_nuc, currDir, currFileName, configuration_1hole[i], jj, eigv)
                 
                 parallel_1hole_paths.append(currDir + "/" + exe_file)
-            
+        
         
         with open(file_cycle_log_1hole, "a") as log_1hole:
-            log_1hole.write("1 hole states discovery done.\nList of all calculated states:\n")
+            log_1hole.write("1 hole states discovery done.\nList of all discovered states:\n")
             for state in calculated1holeStates:
-                log_1hole.write(', '.join(state[0]))
+                log_1hole.write(', '.join([str(qn) for qn in state[0]]) + "\n")
             
             log_1hole.write("ListEnd\n")
-        
     
     
     # Variables to control if the last calculated state has been reached in each cycle
@@ -928,7 +1148,7 @@ def calculate1holeStates(starting_cycle = -1, starting_state = [(0, 0, 0)]):
         if starting_cycle == 1:
             counter = 0
             for state in calculated1holeStates:
-                if found_cycle1:
+                if found_cycle1 or starting_state == [(0, 0, 0)]:
                     i, jj, eigv = state[0]
                     
                     currDir = rootDir + "/" + directory_name + "/radiative/" + shell_array[i] + "/2jj_" + str(jj) + "/eigv_" + str(eigv)
@@ -992,6 +1212,7 @@ def calculate1holeStates(starting_cycle = -1, starting_state = [(0, 0, 0)]):
         
     
     
+    
     # If no starting cycle has been defined or the starting cycle is 1 or 2
     if starting_cycle <= 2:
         # Counter for the first state to be calculated in the state lists
@@ -1001,7 +1222,7 @@ def calculate1holeStates(starting_cycle = -1, starting_state = [(0, 0, 0)]):
         if starting_cycle == 2:
             counter = 0
             for state in calculated1holeStates:
-                if found_cycle2:
+                if found_cycle2 or starting_state == [(0, 0, 0)]:
                     i, jj, eigv = state[0]
                     
                     currDir = rootDir + "/" + directory_name + "/radiative/" + shell_array[i] + "/2jj_" + str(jj) + "/eigv_" + str(eigv)
@@ -1013,14 +1234,14 @@ def calculate1holeStates(starting_cycle = -1, starting_state = [(0, 0, 0)]):
                     
                     if not converged:
                         # Only add this state to the calculation if we reached the starting state
-                        if found_cycle2:
+                        if found_cycle2 or starting_state == [(0, 0, 0)]:
                             parallel_1hole_failed.append(currDir + "/" + exe_file)
                         
                         failed_first_cycle.append(counter)
                     else:
                         if Diff >= diffThreshold or overlap >= overlapsThreshold:
                             # Only add this state to the calculation if we reached the starting state
-                            if found_cycle2:
+                            if found_cycle2 or starting_state == [(0, 0, 0)]:
                                 parallel_1hole_failed.append(currDir + "/" + exe_file)
                             
                             failed_first_cycle.append(counter)
@@ -1033,6 +1254,10 @@ def calculate1holeStates(starting_cycle = -1, starting_state = [(0, 0, 0)]):
                     start_counter = counter
                 
         
+        if len(parallel_1hole_failed) == 0:
+            writeResults1hole()
+            return
+        
         # Execute parallel batch job with logging of calculated state
         executeBatchStateCalculation(parallel_1hole_failed, file_cycle_log_1hole, calculated1holeStates[start_counter:], "Second Cycle Last Calculated:\n")
     
@@ -1040,7 +1265,6 @@ def calculate1holeStates(starting_cycle = -1, starting_state = [(0, 0, 0)]):
     failed_second_cycle = []
     parallel_1hole_failed = []
     
-    failed_orbs = []
     
     # -------------- SECOND CYCLE FOR CONVERGENCE CHECK WITH FAILED ORBITALS -------------- #
     
@@ -1056,7 +1280,7 @@ def calculate1holeStates(starting_cycle = -1, starting_state = [(0, 0, 0)]):
             
             converged, failed_orbital, overlap, higher_config, highest_percent, accuracy, Diff, welt = checkOutput(currDir, currFileName)
             
-            failed_orbs = ["    " + failed_orbital + "  1 5 0 1 :"]
+            failed_orbs = [failed_orbital.strip() + "  1 5 0 1 :"]
             
             calculated1holeStates[counter][-1] = (higher_config, highest_percent, overlap, accuracy, Diff, welt, failed_orbs)
             
@@ -1070,7 +1294,7 @@ def calculate1holeStates(starting_cycle = -1, starting_state = [(0, 0, 0)]):
             else:
                 if Diff >= diffThreshold or overlap >= overlapsThreshold:
                     if failed_orbital != '':
-                        configureStateInputFile(f05Template_10steps_nuc, currDir, currFileName, configuration_1hole[i], jj, eigv, failed_orbs)
+                        configureStateInputFile(f05Template_10steps_Forbs_nuc, currDir, currFileName, configuration_1hole[i], jj, eigv, failed_orbs)
             
                         parallel_1hole_failed.append(currDir + "/" + exe_file)
                     
@@ -1105,14 +1329,14 @@ def calculate1holeStates(starting_cycle = -1, starting_state = [(0, 0, 0)]):
                 
                 if not converged:
                     # Only add this state to the calculation if we reached the starting state
-                    if found_cycle3:
+                    if found_cycle3 or starting_state == [(0, 0, 0)]:
                         parallel_1hole_failed.append(currDir + "/" + exe_file)
                     
                     failed_second_cycle.append(counter)
                 else:
                     if Diff >= diffThreshold or overlap >= overlapsThreshold:
                         # Only add this state to the calculation if we reached the starting state
-                        if found_cycle3:
+                        if found_cycle3 or starting_state == [(0, 0, 0)]:
                             parallel_1hole_failed.append(currDir + "/" + exe_file)
                         
                         failed_second_cycle.append(counter)
@@ -1124,6 +1348,10 @@ def calculate1holeStates(starting_cycle = -1, starting_state = [(0, 0, 0)]):
                     start_counter = counter
                 
         
+        if len(parallel_1hole_failed) == 0:
+            writeResults1hole()
+            return
+        
         # Execute parallel batch job with logging of calculated state
         executeBatchStateCalculation(parallel_1hole_failed, file_cycle_log_1hole, calculated1holeStates[start_counter:], "Third Cycle Last Calculated:\n")
     
@@ -1131,7 +1359,6 @@ def calculate1holeStates(starting_cycle = -1, starting_state = [(0, 0, 0)]):
     failed_third_cycle = []
     parallel_1hole_failed = []
     
-    failed_orbs = []
     
     # -------------- THIRD CYCLE FOR CONVERGENCE CHECK WITH FAILED ORBITALS -------------- #
     
@@ -1147,35 +1374,35 @@ def calculate1holeStates(starting_cycle = -1, starting_state = [(0, 0, 0)]):
             
             converged, failed_orbital, overlap, higher_config, highest_percent, accuracy, Diff, welt = checkOutput(currDir, currFileName)
             
-            failed_orbs = calculated1holeStates[counter][1][5]
+            failed_orbs = calculated1holeStates[counter][1][6]
             
             if failed_orbital != '':
-                failed_orbs.append("    " + failed_orbital + "  1 5 0 1 :")
+                failed_orbs.append("    " + failed_orbital.strip() + "  1 5 0 1 :")
             
             
             if not converged:
-                if failed_orbs[0] != "      1 5 0 1 :" and len(failed_orbs) == 2:
-                    configureStateInputFile(f05Template_10steps_nuc, currDir, currFileName, configuration_1hole[i], jj, eigv, failed_orbs)
+                if failed_orbs[0] != "  1 5 0 1 :" and len(failed_orbs) == 2:
+                    configureStateInputFile(f05Template_10steps_Forbs_nuc, currDir, currFileName, configuration_1hole[i], jj, eigv, failed_orbs)
             
                     parallel_1hole_failed.append(currDir + "/" + exe_file)
                 elif len(failed_orbs) == 2:
                     del failed_orbs[0]
                     
-                    configureStateInputFile(f05Template_10steps_nuc, currDir, currFileName, configuration_1hole[i], jj, eigv, failed_orbs)
+                    configureStateInputFile(f05Template_10steps_Forbs_nuc, currDir, currFileName, configuration_1hole[i], jj, eigv, failed_orbs)
             
                     parallel_1hole_failed.append(currDir + "/" + exe_file)
                 
                 failed_third_cycle.append(counter)
             else:
                 if Diff >= diffThreshold or overlap >= overlapsThreshold:
-                    if failed_orbs[0] != "      1 5 0 1 :" and len(failed_orbs) == 2:
-                        configureStateInputFile(f05Template_10steps_nuc, currDir, currFileName, configuration_1hole[i], jj, eigv, failed_orbs)
+                    if failed_orbs[0] != "  1 5 0 1 :" and len(failed_orbs) == 2:
+                        configureStateInputFile(f05Template_10steps_Forbs_nuc, currDir, currFileName, configuration_1hole[i], jj, eigv, failed_orbs)
             
                         parallel_1hole_failed.append(currDir + "/" + exe_file)
                     elif len(failed_orbs) == 2:
                         del failed_orbs[0]
                         
-                        configureStateInputFile(f05Template_10steps_nuc, currDir, currFileName, configuration_1hole[i], jj, eigv, failed_orbs)
+                        configureStateInputFile(f05Template_10steps_Forbs_nuc, currDir, currFileName, configuration_1hole[i], jj, eigv, failed_orbs)
             
                         parallel_1hole_failed.append(currDir + "/" + exe_file)
                 
@@ -1211,14 +1438,14 @@ def calculate1holeStates(starting_cycle = -1, starting_state = [(0, 0, 0)]):
             
             if not converged:
                 # Only add this state to the calculation if we reached the starting state
-                if found_cycle4:
+                if found_cycle4 or starting_state == [(0, 0, 0)]:
                     parallel_1hole_failed.append(currDir + "/" + exe_file)
                 
                 failed_third_cycle.append(counter)
             else:
                 if Diff >= diffThreshold or overlap >= overlapsThreshold:
                     # Only add this state to the calculation if we reached the starting state
-                    if found_cycle4:
+                    if found_cycle4 or starting_state == [(0, 0, 0)]:
                         parallel_1hole_failed.append(currDir + "/" + exe_file)
                     
                     failed_third_cycle.append(counter)
@@ -1229,6 +1456,10 @@ def calculate1holeStates(starting_cycle = -1, starting_state = [(0, 0, 0)]):
                 found_cycle4 = True
                 start_counter = counter
             
+    
+    if len(parallel_1hole_failed) == 0:
+        writeResults1hole()
+        return
     
     # Execute parallel batch job with logging of calculated state
     executeBatchStateCalculation(parallel_1hole_failed, file_cycle_log_1hole, calculated1holeStates[start_counter:], "Fourth Cycle Last Calculated:\n")
@@ -1258,22 +1489,7 @@ def calculate1holeStates(starting_cycle = -1, starting_state = [(0, 0, 0)]):
     
     # -------------- WRITE RESULTS TO THE FILES -------------- #
     
-    with open(file_results, "a") as resultDump:
-        with open(file_final_results_1hole, "a") as stateResults_1hole:
-            with open(file_final_results, "a") as stateResults:
-                resultDump.write("Fourth Cycle 1 Hole states\nShell, Shell index, 2J, Eigv, Higher Configuration, Percentage, Overlap, Accuracy, Energy Difference, Energy Welton\n")
-                stateResults_1hole.write("Calculated 1 Hole states\nShell, Shell index, 2J, Eigv, Higher Configuration, Percentage, Overlap, Accuracy, Energy Difference, Energy Welton\n")
-                stateResults.write("Calculated 1 Hole states\nShell, Shell index, 2J, Eigv, Higher Configuration, Percentage, Overlap, Accuracy, Energy Difference, Energy Welton\n")
-                for state in calculated1holeStates:
-                    resultDump.write(shell_array[state[0][0]] + ", " + str(state[0][0]) + ", " + str(state[0][1]) + ", " + str(state[0][2]) + ", " + state[1][0] + ", " + str(state[1][1]) + ", " + str(state[1][2]) + ", " + str(state[1][3]) + ", " + str(state[1][4]) + ", " + str(state[1][5]) + "\n")
-                    stateResults_1hole.write(shell_array[state[0][0]] + ", " + str(state[0][0]) + ", " + str(state[0][1]) + ", " + str(state[0][2]) + ", " + state[1][0] + ", " + str(state[1][1]) + ", " + str(state[1][2]) + ", " + str(state[1][3]) + ", " + str(state[1][4]) + ", " + str(state[1][5]) + "\n")
-                    stateResults.write(shell_array[state[0][0]] + ", " + str(state[0][0]) + ", " + str(state[0][1]) + ", " + str(state[0][2]) + ", " + state[1][0] + ", " + str(state[1][1]) + ", " + str(state[1][2]) + ", " + str(state[1][3]) + ", " + str(state[1][4]) + ", " + str(state[1][5]) + "\n")
-                
-                stateResults_1hole.write("1 Hole by Hand\n")
-                stateResults.write("1 Hole by Hand\n")
-                for counter in radiative_by_hand:
-                    stateResults_1hole.write(shell_array[calculated1holeStates[counter][0][0]] + ", " + str(calculated1holeStates[counter][0][0]) + ", " + str(calculated1holeStates[counter][0][1]) + ", " + str(calculated1holeStates[counter][0][2]) + ", " + calculated1holeStates[counter][1][0] + ", " + str(calculated1holeStates[counter][1][1]) + ", " + str(calculated1holeStates[counter][1][2]) + ", " + str(calculated1holeStates[counter][1][3]) + ", " + str(calculated1holeStates[counter][1][4]) + ", " + str(calculated1holeStates[counter][1][5]) + "\n")
-                    stateResults.write(shell_array[calculated1holeStates[counter][0][0]] + ", " + str(calculated1holeStates[counter][0][0]) + ", " + str(calculated1holeStates[counter][0][1]) + ", " + str(calculated1holeStates[counter][0][2]) + ", " + calculated1holeStates[counter][1][0] + ", " + str(calculated1holeStates[counter][1][1]) + ", " + str(calculated1holeStates[counter][1][2]) + ", " + str(calculated1holeStates[counter][1][3]) + ", " + str(calculated1holeStates[counter][1][4]) + ", " + str(calculated1holeStates[counter][1][5]) + "\n")
+    writeResults1hole()
     
     
 
@@ -1355,12 +1571,12 @@ def calculate2holesStates(starting_cycle = -1, starting_state = [(0, 0, 0)]):
                 configureStateInputFile(f05Template_nuc, currDir, currFileName, configuration_2holes[i], jj, eigv, int(nelectrons) - 1)
                 
                 parallel_2holes_paths.append(currDir + "/" + exe_file)
-            
+        
         
         with open(file_cycle_log_2holes, "a") as log_2holes:
-            log_2holes.write("2 holes states discovery done.\nList of all calculated states:\n")
+            log_2holes.write("2 holes states discovery done.\nList of all discovered states:\n")
             for state in calculated2holesStates:
-                log_2holes.write(', '.join(state[0]))
+                log_2holes.write(', '.join([str(qn) for qn in state[0]]) + "\n")
             
             log_2holes.write("ListEnd\n")
     
@@ -1381,7 +1597,7 @@ def calculate2holesStates(starting_cycle = -1, starting_state = [(0, 0, 0)]):
         if starting_cycle == 1:
             counter = 0
             for state in calculated2holesStates:
-                if found_cycle1:
+                if found_cycle1 or starting_state == [(0, 0, 0)]:
                     i, jj, eigv = state[0]
                     
                     currDir = rootDir + "/" + directory_name + "/auger/" + shell_array_2holes[i] + "/2jj_" + str(jj) + "/eigv_" + str(eigv)
@@ -1453,7 +1669,7 @@ def calculate2holesStates(starting_cycle = -1, starting_state = [(0, 0, 0)]):
         if starting_cycle == 2:
             counter = 0
             for state in calculated2holesStates:
-                if found_cycle2:
+                if found_cycle2 or starting_state == [(0, 0, 0)]:
                     i, jj, eigv = state[0]
                     
                     currDir = rootDir + "/" + directory_name + "/auger/" + shell_array_2holes[i] + "/2jj_" + str(jj) + "/eigv_" + str(eigv)
@@ -1461,18 +1677,18 @@ def calculate2holesStates(starting_cycle = -1, starting_state = [(0, 0, 0)]):
                     
                     converged, failed_orbital, overlap, higher_config, highest_percent, accuracy, Diff, welt = checkOutput(currDir, currFileName)
                     
-                    calculated1holeStates[counter].append((higher_config, highest_percent, overlap, accuracy, Diff, welt))
+                    calculated2holesStates[counter].append((higher_config, highest_percent, overlap, accuracy, Diff, welt))
                     
                     if not converged:
                         # Only add this state to the calculation if we reached the starting state
-                        if found_cycle2:
+                        if found_cycle2 or starting_state == [(0, 0, 0)]:
                             parallel_2holes_failed.append(currDir + "/" + exe_file)
                         
                         failed_first_cycle.append(counter)
                     else:
                         if Diff >= diffThreshold or overlap >= overlapsThreshold:
                             # Only add this state to the calculation if we reached the starting state
-                            if found_cycle2:
+                            if found_cycle2 or starting_state == [(0, 0, 0)]:
                                 parallel_2holes_failed.append(currDir + "/" + exe_file)
                             
                             failed_first_cycle.append(counter)
@@ -1485,6 +1701,10 @@ def calculate2holesStates(starting_cycle = -1, starting_state = [(0, 0, 0)]):
                     start_counter = counter
                 
         
+        if len(parallel_2holes_failed) == 0:
+            writeResults2holes()
+            return
+        
         # Execute parallel batch job with logging of calculated state
         executeBatchStateCalculation(parallel_2holes_failed, file_cycle_log_2holes, calculated2holesStates[start_counter:], "Second Cycle Last Calculated:\n")
     
@@ -1492,7 +1712,6 @@ def calculate2holesStates(starting_cycle = -1, starting_state = [(0, 0, 0)]):
     failed_second_cycle = []
     parallel_2holes_failed = []
     
-    failed_orbs = []
     
     # -------------- SECOND CYCLE FOR CONVERGENCE CHECK WITH FAILED ORBITALS -------------- #
     
@@ -1508,7 +1727,7 @@ def calculate2holesStates(starting_cycle = -1, starting_state = [(0, 0, 0)]):
             
             converged, failed_orbital, overlap, higher_config, highest_percent, accuracy, Diff, welt = checkOutput(currDir, currFileName)
             
-            failed_orbs = ["    " + failed_orbital + "  1 5 0 1 :"]
+            failed_orbs = [failed_orbital.strip() + "  1 5 0 1 :"]
             
             
             calculated2holesStates[counter][-1] = (higher_config, highest_percent, overlap, accuracy, Diff, welt, failed_orbs)
@@ -1523,7 +1742,7 @@ def calculate2holesStates(starting_cycle = -1, starting_state = [(0, 0, 0)]):
             else:
                 if Diff >= diffThreshold or overlap >= overlapsThreshold:
                     if failed_orbital != '':
-                        configureStateInputFile(f05Template_10steps_nuc, currDir, currFileName, configuration_2holes[i], jj, eigv, int(nelectrons) - 1, failed_orbs)
+                        configureStateInputFile(f05Template_10steps_Forbs_nuc, currDir, currFileName, configuration_2holes[i], jj, eigv, int(nelectrons) - 1, failed_orbs)
             
                         parallel_2holes_failed.append(currDir + "/" + exe_file)
                     
@@ -1559,14 +1778,14 @@ def calculate2holesStates(starting_cycle = -1, starting_state = [(0, 0, 0)]):
                 
                 if not converged:
                     # Only add this state to the calculation if we reached the starting state
-                    if found_cycle3:
+                    if found_cycle3 or starting_state == [(0, 0, 0)]:
                         parallel_2holes_failed.append(currDir + "/" + exe_file)
                     
                     failed_second_cycle.append(counter)
                 else:
                     if Diff >= diffThreshold or overlap >= overlapsThreshold:
                         # Only add this state to the calculation if we reached the starting state
-                        if found_cycle3:
+                        if found_cycle3 or starting_state == [(0, 0, 0)]:
                             parallel_2holes_failed.append(currDir + "/" + exe_file)
                         
                         failed_second_cycle.append(counter)
@@ -1578,14 +1797,16 @@ def calculate2holesStates(starting_cycle = -1, starting_state = [(0, 0, 0)]):
                     start_counter = counter
                 
         
+        if len(parallel_2holes_failed) == 0:
+            writeResults2holes()
+            return
+        
         # Execute parallel batch job with logging of calculated state
         executeBatchStateCalculation(parallel_2holes_failed, file_cycle_log_2holes, calculated2holesStates, "Third Cycle Last Calculated:\n")
     
     
     failed_third_cycle = []
     parallel_2holes_failed = []
-    
-    failed_orbs = []
     
     # -------------- THIRD CYCLE FOR CONVERGENCE CHECK WITH FAILED ORBITALS -------------- #
     
@@ -1601,35 +1822,35 @@ def calculate2holesStates(starting_cycle = -1, starting_state = [(0, 0, 0)]):
             
             converged, failed_orbital, overlap, higher_config, highest_percent, accuracy, Diff, welt = checkOutput(currDir, currFileName)
             
-            failed_orbs = calculated2holesStates[counter][1][5]
+            failed_orbs = calculated2holesStates[counter][1][6]
             
             if failed_orbital != '':
                 failed_orbs.append("    " + failed_orbital + "  1 5 0 1 :")
             
             
             if not converged:
-                if failed_orbs[0] != "      1 5 0 1 :" and len(failed_orbs) == 2:
-                    configureStateInputFile(f05Template_10steps_nuc, currDir, currFileName, configuration_2holes[i], jj, eigv, int(nelectrons) - 1, failed_orbs)
+                if failed_orbs[0] != "  1 5 0 1 :" and len(failed_orbs) == 2:
+                    configureStateInputFile(f05Template_10steps_Forbs_nuc, currDir, currFileName, configuration_2holes[i], jj, eigv, int(nelectrons) - 1, failed_orbs)
             
                     parallel_2holes_failed.append(currDir + "/" + exe_file)
                 elif len(failed_orbs) == 2:
                     del failed_orbs[0]
                     
-                    configureStateInputFile(f05Template_10steps_nuc, currDir, currFileName, configuration_2holes[i], jj, eigv, int(nelectrons) - 1, failed_orbs)
+                    configureStateInputFile(f05Template_10steps_Forbs_nuc, currDir, currFileName, configuration_2holes[i], jj, eigv, int(nelectrons) - 1, failed_orbs)
             
                     parallel_2holes_failed.append(currDir + "/" + exe_file)
                 
                 failed_third_cycle.append(counter)
             else:
                 if Diff >= diffThreshold or overlap >= overlapsThreshold:
-                    if failed_orbs[0] != "      1 5 0 1 :" and len(failed_orbs) == 2:
-                        configureStateInputFile(f05Template_10steps_nuc, currDir, currFileName, configuration_2holes[i], jj, eigv, int(nelectrons) - 1, failed_orbs)
+                    if failed_orbs[0] != "  1 5 0 1 :" and len(failed_orbs) == 2:
+                        configureStateInputFile(f05Template_10steps_Forbs_nuc, currDir, currFileName, configuration_2holes[i], jj, eigv, int(nelectrons) - 1, failed_orbs)
             
                         parallel_2holes_failed.append(currDir + "/" + exe_file)
                     elif len(failed_orbs) == 2:
                         del failed_orbs[0]
                         
-                        configureStateInputFile(f05Template_10steps_nuc, currDir, currFileName, configuration_2holes[i], jj, eigv, int(nelectrons) - 1, failed_orbs)
+                        configureStateInputFile(f05Template_10steps_Forbs_nuc, currDir, currFileName, configuration_2holes[i], jj, eigv, int(nelectrons) - 1, failed_orbs)
             
                         parallel_2holes_failed.append(currDir + "/" + exe_file)
                 
@@ -1665,14 +1886,14 @@ def calculate2holesStates(starting_cycle = -1, starting_state = [(0, 0, 0)]):
             
             if not converged:
                 # Only add this state to the calculation if we reached the starting state
-                if found_cycle4:
+                if found_cycle4 or starting_state == [(0, 0, 0)]:
                     parallel_2holes_failed.append(currDir + "/" + exe_file)
                 
                 failed_third_cycle.append(counter)
             else:
                 if Diff >= diffThreshold or overlap >= overlapsThreshold:
                     # Only add this state to the calculation if we reached the starting state
-                    if found_cycle4:
+                    if found_cycle4 or starting_state == [(0, 0, 0)]:
                         parallel_2holes_failed.append(currDir + "/" + exe_file)
                     
                     failed_third_cycle.append(counter)
@@ -1683,6 +1904,10 @@ def calculate2holesStates(starting_cycle = -1, starting_state = [(0, 0, 0)]):
                 found_cycle4 = True
                 start_counter = counter
             
+    
+    if len(parallel_2holes_failed) == 0:
+        writeResults2holes()
+        return
     
     # Execute parallel batch job with logging of calculated state
     executeBatchStateCalculation(parallel_2holes_failed, file_cycle_log_2holes, calculated2holesStates, "Fourth Cycle Last Calculated:\n")
@@ -1712,49 +1937,33 @@ def calculate2holesStates(starting_cycle = -1, starting_state = [(0, 0, 0)]):
     
     # -------------- WRITE RESULTS TO THE FILES -------------- #
     
-    with open(file_results, "a") as resultDump:
-        with open(file_final_results_2holes, "a") as stateResults_2holes:
-            with open(file_final_results, "a") as stateResults:
-                resultDump.write("Fourth Cycle 2 Hole states\nShell, Shell index, 2J, Eigv, Higher Configuration, Percentage, Overlap, Accuracy, Energy Difference, Energy Welton\n")
-                stateResults_2holes.write("Calculated 2 Hole states\nShell, Shell index, 2J, Eigv, Higher Configuration, Percentage, Overlap, Accuracy, Energy Difference, Energy Welton\n")
-                stateResults.write("Calculated 2 Hole states\nShell, Shell index, 2J, Eigv, Higher Configuration, Percentage, Overlap, Accuracy, Energy Difference, Energy Welton\n")
-                for state in calculated2holesStates:
-                    resultDump.write(shell_array_2holes[state[0][0]] + ", " + str(state[0][0]) + ", " + str(state[0][1]) + ", " + str(state[0][2]) + ", " + state[1][0] + ", " + str(state[1][1]) + ", " + str(state[1][2]) + ", " + str(state[1][3]) + ", " + str(state[1][4]) + ", " + str(state[1][5]) + "\n")
-                    stateResults_2holes.write(shell_array_2holes[state[0][0]] + ", " + str(state[0][0]) + ", " + str(state[0][1]) + ", " + str(state[0][2]) + ", " + state[1][0] + ", " + str(state[1][1]) + ", " + str(state[1][2]) + ", " + str(state[1][3]) + ", " + str(state[1][4]) + ", " + str(state[1][5]) + "\n")
-                    stateResults.write(shell_array_2holes[state[0][0]] + ", " + str(state[0][0]) + ", " + str(state[0][1]) + ", " + str(state[0][2]) + ", " + state[1][0] + ", " + str(state[1][1]) + ", " + str(state[1][2]) + ", " + str(state[1][3]) + ", " + str(state[1][4]) + ", " + str(state[1][5]) + "\n")
-                
-                stateResults_2holes.write("2 Hole by Hand\n")
-                stateResults.write("2 Hole by Hand\n")
-                for counter in auger_by_hand:
-                    stateResults_2holes.write(shell_array_2holes[calculated2holesStates[counter][0][0]] + ", " + str(calculated2holesStates[counter][0][0]) + ", " + str(calculated2holesStates[counter][0][1]) + ", " + str(calculated2holesStates[counter][0][2]) + ", " + calculated2holesStates[counter][1][0] + ", " + str(calculated2holesStates[counter][1][1]) + ", " + str(calculated2holesStates[counter][1][2]) + ", " + str(calculated2holesStates[counter][1][3]) + ", " + str(calculated2holesStates[counter][1][4]) + "\n")
-                    stateResults.write(shell_array_2holes[calculated2holesStates[counter][0][0]] + ", " + str(calculated2holesStates[counter][0][0]) + ", " + str(calculated2holesStates[counter][0][1]) + ", " + str(calculated2holesStates[counter][0][2]) + ", " + calculated2holesStates[counter][1][0] + ", " + str(calculated2holesStates[counter][1][1]) + ", " + str(calculated2holesStates[counter][1][2]) + ", " + str(calculated2holesStates[counter][1][3]) + ", " + str(calculated2holesStates[counter][1][4]) + "\n")
+    writeResults2holes()
     
 
 def sortCalculatedStates():
     global calculated1holeStates, calculated2holesStates
     
-    
     calculated1holeStates.sort(key = lambda x: x[1][-1])
     
     with open(file_sorted_1hole, "w") as sorted_1hole:
         for state in calculated1holeStates:
-            sorted_1hole.write(', '.join(state[0]) + "; " + str(state[1][0]) + ", " + str(state[1][1]) + ", " + str(state[1][2]) + ", " + str(state[1][3]) + ", " + str(state[1][4]) + ", " + str(state[1][5]) + "\n")
+            sorted_1hole.write(', '.join([str(qn) for qn in state[0]]) + "; " + ', '.join([str(par) for par in state[1]]) + "\n")
     
     
     calculated2holesStates.sort(key = lambda x: x[1][-1])
     
     with open(file_sorted_2holes, "w") as sorted_2holes:
         for state in calculated2holesStates:
-            sorted_2holes.write(', '.join(state[0]) + "; " + str(state[1][0]) + ", " + str(state[1][1]) + ", " + str(state[1][2]) + ", " + str(state[1][3]) + ", " + str(state[1][4]) + ", " + str(state[1][5]) + "\n")
+            sorted_2holes.write(', '.join([str(qn) for qn in state[0]]) + "; " + ', '.join([str(par) for par in state[1]]) + "\n")
 
 
 
 def readTransition(currDir, currFileName, radiative = True):
-    energy = ''
-    rate = ''
+    energy = '0.0'
+    rate = '0.0'
     
     multipoles = []
-
+    
     with open(currDir + "/" + currFileName + ".f06", "r") as output:
         outputContent = output.readlines()
         
@@ -1765,14 +1974,15 @@ def readTransition(currDir, currFileName, radiative = True):
                 elif "total transition rate is:" in line:
                     rate = line.strip().split()[-2].strip()
                 elif "Summary of transition rates" in line:
+                    cnt = i + 3
                     while True:
-                        cnt = i + 3
-                        
                         if outputContent[cnt] == "\n":
                             break
-                        else "s-1" in outputContent[cnt]:
+                        elif "s-1" in outputContent[cnt]:
                             vals = outputContent[cnt].strip().split()
                             multipoles.append([vals[0], vals[1]])
+                        
+                        cnt += 1
             
             return energy, rate, multipoles
         else:
@@ -1804,8 +2014,8 @@ def rates(starting_transition = [(0, 0, 0), (0, 0, 0)]):
     found_starting = False
 
     combCnt = 0
-    for counter, state_i in enumerate(calculated1holeStates):
-        for state_f in calculated1holeStates[counter:]:
+    for counter, state_f in enumerate(calculated1holeStates):
+        for state_i in calculated1holeStates[(counter + 1):]:
             i, jj_i, eigv_i = state_i[0]
             f, jj_f, eigv_f = state_f[0]
             
@@ -1831,8 +2041,8 @@ def rates(starting_transition = [(0, 0, 0), (0, 0, 0)]):
                 parallel_initial_src_paths.append(currDir_i + "/" + currFileName_i + ".f09")
                 parallel_final_src_paths.append(currDir_f + "/" + currFileName_f + ".f09")
                 
-                parallel_initial_dst_paths.append(currDir_i + "/" + wfiFile + ".f09")
-                parallel_final_dst_paths.append(currDir_f + "/" + wffFile + ".f09")
+                parallel_initial_dst_paths.append(currDir + "/" + wfiFile + ".f09")
+                parallel_final_dst_paths.append(currDir + "/" + wffFile + ".f09")
                 
                 parallel_transition_paths.append(currDir + "/" + exe_file)
             
@@ -1841,24 +2051,22 @@ def rates(starting_transition = [(0, 0, 0), (0, 0, 0)]):
             if [state_i[0], state_f[0]] == starting_transition:
                 found_starting = True
     
-    
-    executeBatchTransitionCalculation(parallel_transition_paths, \
-                                    parallel_initial_src_paths, parallel_final_src_paths, \
-                                    parallel_initial_dst_paths, parallel_final_dst_paths, \
-                                    file_calculated_radiative, calculatedRadiativeTransitions, "Calculated transitions:\n")
+    if len(parallel_transition_paths) > 0:
+        executeBatchTransitionCalculation(parallel_transition_paths, \
+                                        parallel_initial_src_paths, parallel_final_src_paths, \
+                                        parallel_initial_dst_paths, parallel_final_dst_paths, \
+                                        file_calculated_radiative, calculatedRadiativeTransitions, "Calculated transitions:\n")
     
     
     energies = []
     rates = []
     multipole_array = []
     
-    total_rates = []
+    total_rates = dict.fromkeys([state[0] for state in calculated1holeStates], 0.0)
     
     combCnt = 0
-    for counter, state_i in enumerate(calculated1holeStates):
-        total_rates.append(0.0)
-        
-        for state_f in calculated1holeStates[counter:]:
+    for counter, state_f in enumerate(calculated1holeStates):
+        for state_i in calculated1holeStates[(counter + 1):]:
             i, jj_i, eigv_i = state_i[0]
             f, jj_f, eigv_f = state_f[0]
             
@@ -1867,7 +2075,7 @@ def rates(starting_transition = [(0, 0, 0), (0, 0, 0)]):
             
             energy, rate, multipoles = readTransition(currDir, currFileName)
             
-            total_rates[counter] += float(rate)
+            total_rates[state_i[0]] += float(rate)
             
             energies.append(energy)
             rates.append(rate)
@@ -1878,34 +2086,34 @@ def rates(starting_transition = [(0, 0, 0), (0, 0, 0)]):
     
     # -------------- WRITE RESULTS TO THE FILES -------------- #
     
-    with open(file_rates, "a") as rad_rates:
+    with open(file_rates, "w") as rad_rates:
         rad_rates.write("Calculated Radiative Transitions\nTransition register\tShell IS\tIS Configuration\tIS 2JJ\tIS eigenvalue\tIS higher configuration\tIS percentage\tShell FS\tFS Configuration\tFS 2JJ\tFS eigenvalue\tFS higher configuration\tFS percentage\ttransition energy [eV]\trate [s-1]\tnumber multipoles\ttotal rate from IS\tbranching ratio\n")
         combCnt = 0
-        for counter, state_i in enumerate(calculated1holeStates):
-            for state_f in calculated1holeStates[counter:]:
+        for counter, state_f in enumerate(calculated1holeStates):
+            for state_i in calculated1holeStates[(counter + 1):]:
                 i, jj_i, eigv_i = state_i[0]
                 f, jj_f, eigv_f = state_f[0]
                 
-                calculatedRadiativeTransitions[combCnt].append((energies[combCnt], rates[combCnt], total_rates[combCnt], multipole_array[combCnt]))
+                calculatedRadiativeTransitions[combCnt].append((energies[combCnt], rates[combCnt], total_rates[state_i[0]], multipole_array[combCnt]))
                 
                 rad_rates.write(str(combCnt) + "\t" + \
                                 shell_array[i] + "\t" + \
                                 configuration_1hole[i] + "\t" + \
                                 str(jj_i) + "\t" + \
                                 str(eigv_i) + "\t" + \
-                                state_i[1][0] + "\t" + \
-                                state_i[1][1] + "\t" + \
+                                str(state_i[1][0]) + "\t" + \
+                                str(state_i[1][1]) + "\t" + \
                                 shell_array[f] + "\t" + \
                                 configuration_1hole[f] + "\t" + \
                                 str(jj_f) + "\t" + \
                                 str(eigv_f) + "\t" + \
-                                state_f[1][0] + "\t" + \
-                                state_f[1][1] + "\t" + \
-                                energies[combCnt] + "\t" + \
-                                rates[combCnt] + "\t" + \
+                                str(state_f[1][0]) + "\t" + \
+                                str(state_f[1][1]) + "\t" + \
+                                str(energies[combCnt]) + "\t" + \
+                                str(rates[combCnt]) + "\t" + \
                                 str(len(multipole_array[combCnt])) + "\t" + \
-                                str(total_rates[counter]) + "\t" + \
-                                (str(float(rate) / total_rates[counter]) if total_rates[counter] != 0.0 else "0.0") + "\t" + \
+                                str(total_rates[state_i[0]]) + "\t" + \
+                                (str(float(rate) / total_rates[state_i[0]]) if total_rates[state_i[0]] != 0.0 else "0.0") + "\t" + \
                                 '\t'.join(['\t'.join(pole) for pole in multipole_array[combCnt]]) + "\n")
                 
                 combCnt += 1
@@ -1965,8 +2173,8 @@ def rates_auger(starting_transition = [(0, 0, 0), (0, 0, 0)]):
                 parallel_initial_src_paths.append(currDir_i + "/" + currFileName_i + ".f09")
                 parallel_final_src_paths.append(currDir_f + "/" + currFileName_f + ".f09")
                 
-                parallel_initial_dst_paths.append(currDir_i + "/" + wfiFile + ".f09")
-                parallel_final_dst_paths.append(currDir_f + "/" + wffFile + ".f09")
+                parallel_initial_dst_paths.append(currDir + "/" + wfiFile + ".f09")
+                parallel_final_dst_paths.append(currDir + "/" + wffFile + ".f09")
                 
                 parallel_transition_paths.append(currDir + "/" + exe_file)
             
@@ -1975,10 +2183,11 @@ def rates_auger(starting_transition = [(0, 0, 0), (0, 0, 0)]):
             if [state_i[0], state_f[0]] == starting_transition:
                 found_starting = True
     
-    executeBatchTransitionCalculation(parallel_transition_paths, \
-                                    parallel_initial_src_paths, parallel_final_src_paths, \
-                                    parallel_initial_dst_paths, parallel_final_dst_paths, \
-                                    file_calculated_auger, calculatedAugerTransitions, "Calculated transitions:\n")
+    if len(parallel_transition_paths) > 0:
+        executeBatchTransitionCalculation(parallel_transition_paths, \
+                                        parallel_initial_src_paths, parallel_final_src_paths, \
+                                        parallel_initial_dst_paths, parallel_final_dst_paths, \
+                                        file_calculated_auger, calculatedAugerTransitions, "Calculated transitions:\n")
     
     
     energies = []
@@ -2016,7 +2225,7 @@ def rates_auger(starting_transition = [(0, 0, 0), (0, 0, 0)]):
     
     # -------------- WRITE RESULTS TO THE FILES -------------- #
     
-    with open(file_rates_auger, "a") as aug_rates:
+    with open(file_rates_auger, "w") as aug_rates:
         aug_rates.write("Calculated Auger Transitions\nTransition register\tShell IS\tIS Configuration\tIS 2JJ\tIS eigenvalue\tIS higher configuration\tIS percentage\tShell FS\tFS Configuration\tFS 2JJ\tFS eigenvalue\tFS higher configuration\tFS percentage\ttransition energy [eV]\trate [s-1]\ttotal rate from IS\tbranching ratio\n")
         combCnt = 0
         for counter, state_i in enumerate(calculated1holeStates):
@@ -2030,23 +2239,24 @@ def rates_auger(starting_transition = [(0, 0, 0), (0, 0, 0)]):
                 i, jj_i, eigv_i = state_i[0]
                 f, jj_f, eigv_f = state_f[0]
                 
-                calculatedAugerTransitions[combCnt].append((energies[combCnt], rates[combCnt], total_rates[combCnt]))
+                calculatedAugerTransitions[combCnt].append((energies[combCnt], rates[combCnt], total_rates[counter]))
+                
                 
                 aug_rates.write(str(combCnt) + "\t" + \
                                 shell_array[i] + "\t" + \
                                 configuration_1hole[i] + "\t" + \
                                 str(jj_i) + "\t" + \
                                 str(eigv_i) + "\t" + \
-                                state_i[1][0] + "\t" + \
-                                state_i[1][1] + "\t" + \
-                                shell_array[f] + "\t" + \
+                                str(state_i[1][0]) + "\t" + \
+                                str(state_i[1][1]) + "\t" + \
+                                shell_array_2holes[f] + "\t" + \
                                 configuration_2holes[f] + "\t" + \
                                 str(jj_f) + "\t" + \
                                 str(eigv_f) + "\t" + \
-                                state_f[1][0] + "\t" + \
-                                state_f[1][1] + "\t" + \
-                                energies[combCnt] + "\t" + \
-                                rates[combCnt] + "\t" + \
+                                str(state_f[1][0]) + "\t" + \
+                                str(state_f[1][1]) + "\t" + \
+                                str(energies[combCnt]) + "\t" + \
+                                str(rates[combCnt]) + "\t" + \
                                 str(total_rates[counter]) + "\t" + \
                                 (str(float(rate) / total_rates[counter]) if total_rates[counter] != 0.0 else "0.0") + "\n")
                 
@@ -2071,8 +2281,8 @@ def rates_satellite(starting_transition = [(0, 0, 0), (0, 0, 0)]):
     found_starting = False
 
     combCnt = 0
-    for counter, state_i in enumerate(calculated2holesStates):
-        for state_f in calculated2holesStates[counter:]:
+    for counter, state_f in enumerate(calculated2holesStates):
+        for state_i in calculated2holesStates[(counter + 1):]:
             i, jj_i, eigv_i = state_i[0]
             f, jj_f, eigv_f = state_f[0]
             
@@ -2082,11 +2292,11 @@ def rates_satellite(starting_transition = [(0, 0, 0), (0, 0, 0)]):
                 currDir = rootDir + "/" + directory_name + "/transitions/satellites/" + str(combCnt)
                 currFileName = str(combCnt)
                 
-                currDir_i = rootDir + "/" + directory_name + "/auger/" + shell_array[i] + "/2jj_" + str(jj_i) + "/eigv_" + str(eigv_i)
-                currFileName_i = shell_array[i] + "_" + str(jj_i) + "_" + str(eigv_i)
+                currDir_i = rootDir + "/" + directory_name + "/auger/" + shell_array_2holes[i] + "/2jj_" + str(jj_i) + "/eigv_" + str(eigv_i)
+                currFileName_i = shell_array_2holes[i] + "_" + str(jj_i) + "_" + str(eigv_i)
                 
-                currDir_f = rootDir + "/" + directory_name + "/auger/" + shell_array[f] + "/2jj_" + str(jj_f) + "/eigv_" + str(eigv_f)
-                currFileName_f = shell_array[f] + "_" + str(jj_f) + "_" + str(eigv_f)
+                currDir_f = rootDir + "/" + directory_name + "/auger/" + shell_array_2holes[f] + "/2jj_" + str(jj_f) + "/eigv_" + str(eigv_f)
+                currFileName_f = shell_array_2holes[f] + "_" + str(jj_f) + "_" + str(eigv_f)
                 
                 wfiFile, wffFile = configureTransitionInputFile(f05RadTemplate_nuc, \
                                                                 currDir, currFileName, \
@@ -2098,8 +2308,8 @@ def rates_satellite(starting_transition = [(0, 0, 0), (0, 0, 0)]):
                 parallel_initial_src_paths.append(currDir_i + "/" + currFileName_i + ".f09")
                 parallel_final_src_paths.append(currDir_f + "/" + currFileName_f + ".f09")
                 
-                parallel_initial_dst_paths.append(currDir_i + "/" + wfiFile + ".f09")
-                parallel_final_dst_paths.append(currDir_f + "/" + wffFile + ".f09")
+                parallel_initial_dst_paths.append(currDir + "/" + wfiFile + ".f09")
+                parallel_final_dst_paths.append(currDir + "/" + wffFile + ".f09")
                 
                 parallel_transition_paths.append(currDir + "/" + exe_file)
             
@@ -2108,23 +2318,22 @@ def rates_satellite(starting_transition = [(0, 0, 0), (0, 0, 0)]):
             if [state_i[0], state_f[0]] == starting_transition:
                 found_starting = True
     
-    executeBatchTransitionCalculation(parallel_transition_paths, \
-                                    parallel_initial_src_paths, parallel_final_src_paths, \
-                                    parallel_initial_dst_paths, parallel_final_dst_paths, \
-                                    file_calculated_sat, calculatedSatelliteTransitions, "Calculated transitions:\n")
+    if len(parallel_transition_paths) > 0:
+        executeBatchTransitionCalculation(parallel_transition_paths, \
+                                        parallel_initial_src_paths, parallel_final_src_paths, \
+                                        parallel_initial_dst_paths, parallel_final_dst_paths, \
+                                        file_calculated_sat, calculatedSatelliteTransitions, "Calculated transitions:\n")
     
     
     energies = []
     rates = []
     multipole_array = []
     
-    total_rates = []
+    total_rates = dict.fromkeys([state[0] for state in calculated2holesStates], 0.0)
     
     combCnt = 0
-    for counter, state_i in enumerate(calculated2holesStates):
-        total_rates.append(0.0)
-        
-        for state_f in calculated2holesStates[counter:]:
+    for counter, state_f in enumerate(calculated2holesStates):
+        for state_i in calculated2holesStates[(counter + 1):]:
             i, jj_i, eigv_i = state_i[0]
             f, jj_f, eigv_f = state_f[0]
             
@@ -2133,7 +2342,7 @@ def rates_satellite(starting_transition = [(0, 0, 0), (0, 0, 0)]):
             
             energy, rate, multipoles = readTransition(currDir, currFileName)
             
-            total_rates[counter] += float(rate)
+            total_rates[state_i[0]] += float(rate)
             
             energies.append(energy)
             rates.append(rate)
@@ -2144,34 +2353,34 @@ def rates_satellite(starting_transition = [(0, 0, 0), (0, 0, 0)]):
     
     # -------------- WRITE RESULTS TO THE FILES -------------- #
     
-    with open(file_rates_satellites, "a") as sat_rates:
+    with open(file_rates_satellites, "w") as sat_rates:
         sat_rates.write("Calculated Satellite Transitions\nTransition register\tShell IS\tIS Configuration\tIS 2JJ\tIS eigenvalue\tIS higher configuration\tIS percentage\tShell FS\tFS Configuration\tFS 2JJ\tFS eigenvalue\tFS higher configuration\tFS percentage\ttransition energy [eV]\trate [s-1]\tnumber multipoles\ttotal rate from IS\tbranching ratio\n")
         combCnt = 0
-        for counter, state_i in enumerate(calculated2holesStates):
-            for state_f in calculated2holesStates[counter:]:
+        for counter, state_f in enumerate(calculated2holesStates):
+            for state_i in calculated2holesStates[(counter + 1):]:
                 i, jj_i, eigv_i = state_i[0]
                 f, jj_f, eigv_f = state_f[0]
                 
-                calculatedSatelliteTransitions[combCnt].append((energies[combCnt], rates[combCnt], total_rates[combCnt], multipole_array[combCnt]))
+                calculatedSatelliteTransitions[combCnt].append((energies[combCnt], rates[combCnt], total_rates[state_i[0]], multipole_array[combCnt]))
                 
                 sat_rates.write(str(combCnt) + "\t" + \
-                                shell_array[i] + "\t" + \
+                                shell_array_2holes[i] + "\t" + \
                                 configuration_2holes[i] + "\t" + \
                                 str(jj_i) + "\t" + \
                                 str(eigv_i) + "\t" + \
-                                state_i[1][0] + "\t" + \
-                                state_i[1][1] + "\t" + \
-                                shell_array[f] + "\t" + \
+                                str(state_i[1][0]) + "\t" + \
+                                str(state_i[1][1]) + "\t" + \
+                                shell_array_2holes[f] + "\t" + \
                                 configuration_2holes[f] + "\t" + \
                                 str(jj_f) + "\t" + \
                                 str(eigv_f) + "\t" + \
-                                state_f[1][0] + "\t" + \
-                                state_f[1][1] + "\t" + \
-                                energies[combCnt] + "\t" + \
-                                rates[combCnt] + "\t" + \
+                                str(state_f[1][0]) + "\t" + \
+                                str(state_f[1][1]) + "\t" + \
+                                str(energies[combCnt]) + "\t" + \
+                                str(rates[combCnt]) + "\t" + \
                                 str(len(multipole_array[combCnt])) + "\t" + \
-                                str(total_rates[counter]) + "\t" + \
-                                (str(float(rate) / total_rates[counter]) if total_rates[counter] != 0.0 else "0.0") + "\t" + \
+                                str(total_rates[state_i[0]]) + "\t" + \
+                                (str(float(rate) / total_rates[state_i[0]]) if total_rates[state_i[0]] != 0.0 else "0.0") + "\t" + \
                                 '\t'.join(['\t'.join(pole) for pole in multipole_array[combCnt]]) + "\n")
                 
                 combCnt += 1
@@ -2182,7 +2391,7 @@ def calculateSpectra(radiative_done, auger_done, satellite_done):
     print("############ Calculating the sums ###################")
     
 
-    print("number of vacancy configurations == " + len(shell_array) + "\n")
+    print("number of vacancy configurations == " + str(len(shell_array)) + "\n")
     print("type of vacancy == " + ', '.join(shell_array) + "\n")
 	
 	
@@ -2194,10 +2403,11 @@ def calculateSpectra(radiative_done, auger_done, satellite_done):
     
     print("\nCalculating shell rates and multiplicities for diagram and auger...\n")
     
+    for state in calculated1holeStates:
+        multiplicity_JJ[state[0][0]] += state[0][1] + 1
+    
     for transition in calculatedRadiativeTransitions:
         state_i, state_f, pars = transition
-        
-        multiplicity_JJ[state_i[0]] += state_i[1] + 1
         
         radiative_rate_per_shell[state_i[0]] += float(pars[1]) * (state_i[1] + 1)
     
@@ -2223,7 +2433,7 @@ def calculateSpectra(radiative_done, auger_done, satellite_done):
     
     
     
-    print("JJ multiplicity/shell == " + ', '.join(multiplicity_JJ) + "\n")
+    print("JJ multiplicity/shell == " + ', '.join([str(jj) for jj in multiplicity_JJ]) + "\n")
 
 
     print("\nCalculating shell rates and multiplicities for satellites...\n")
@@ -2231,7 +2441,10 @@ def calculateSpectra(radiative_done, auger_done, satellite_done):
     multiplicity_JJ_sat = [0] * len(shell_array_2holes)
     
     radiative_rate_per_shell_sat = [0.0] * len(shell_array_2holes)
-
+    
+    for state in calculated2holesStates:
+        multiplicity_JJ_sat[state[0][0]] += state[0][1] + 1
+    
     for transition in calculatedSatelliteTransitions:
         state_i, state_f, pars = transition
         
@@ -2248,17 +2461,17 @@ def calculateSpectra(radiative_done, auger_done, satellite_done):
             rates_sums_sat.write("\n\n")
 	
 	
-	print("JJ multiplicity/shell sat == " + ', '.join(multiplicity_JJ_sat) + "\n")
+	print("JJ multiplicity/shell sat == " + ', '.join([str(jj) for jj in multiplicity_JJ_sat]) + "\n")
 	
 
     print("\nCalculating total level widths for diagram, auger and satellite transitions...\n")
     
-    rate_level_radiative = dict.fromkeys(calculated1holeStates[:][0], 0.0)
-    rate_level_auger = dict.fromkeys(calculated1holeStates[:][0], 0.0)
-    rate_level_radiative_sat = dict.fromkeys(calculated2holesStates[:][0], 0.0)
+    rate_level_radiative = dict.fromkeys([state[0] for state in calculated1holeStates], 0.0)
+    rate_level_auger = dict.fromkeys([state[0] for state in calculated1holeStates], 0.0)
+    rate_level_radiative_sat = dict.fromkeys([state[0] for state in calculated2holesStates], 0.0)
     
-    rate_level = dict.fromkeys(calculated1holeStates[:][0], 0.0)
-    rate_level_ev = dict.fromkeys(calculated1holeStates[:][0], 0.0)
+    rate_level = dict.fromkeys([state[0] for state in calculated1holeStates], 0.0)
+    rate_level_ev = dict.fromkeys([state[0] for state in calculated1holeStates], 0.0)
     
     for transition in calculatedRadiativeTransitions:
         state_i, state_f, pars = transition
@@ -2269,16 +2482,16 @@ def calculateSpectra(radiative_done, auger_done, satellite_done):
         state_i, state_f, pars = transition
         
         rate_level_auger[state_i] += float(pars[1])
-        
-        
+    
+    for state_i in rate_level:
         rate_level[state_i] = rate_level_radiative[state_i] + rate_level_auger[state_i]
         rate_level_ev[state_i] = rate_level[state_i] * hbar
     
     
-    fluor_sat = {}
-    shell_fl_dia = {}
-    rate_level_sat = {}
-    rate_level_sat_ev = {}
+    fluor_sat = dict.fromkeys([state[0] for state in calculated2holesStates], 0.0)
+    shell_fl_dia = dict.fromkeys([state[0] for state in calculated2holesStates], 0.0)
+    rate_level_sat = dict.fromkeys([state[0] for state in calculated2holesStates], 0.0)
+    rate_level_sat_ev = dict.fromkeys([state[0] for state in calculated2holesStates], 0.0)
     
     
     for transition in calculatedSatelliteTransitions:
@@ -2290,9 +2503,9 @@ def calculateSpectra(radiative_done, auger_done, satellite_done):
         state_i, state_f, pars = transition
         
         shell_sat = shell_array_2holes[state_i[0]].split("_")
-        print(" shell 2 holes =  " + shell_array_2holes[state_i[0]] + "\n")
+        #print(" shell 2 holes =  " + shell_array_2holes[state_i[0]] + "\n")
         
-        print(" shell 2 holes divided 1 = " + shell_sat[0] + "     2 = " + shell_sat[1] + "\n")
+        #print(" shell 2 holes divided 1 = " + shell_sat[0] + "     2 = " + shell_sat[1] + "\n")
     
     
         k = shell_array.index(shell_sat[0])
@@ -2360,13 +2573,13 @@ def calculateSpectra(radiative_done, auger_done, satellite_done):
         spectrum_diagram.write("Transition register \t Shell IS \t IS Configuration \t IS 2JJ \t IS eigenvalue \t IS higher configuration \t IS percentage \t Shell FS \tFS Configuration \t FS 2JJ \t FS eigenvalue \t FS higher configuration \t FS percentage \t transition energy [eV] \t intensity \t intensity [eV] \t width [eV] \n")
 	
         combCnt = 0
-        for counter, state_i in enumerate(calculated1holeStates):
-            for state_f in calculated1holeStates[counter:]:
+        for counter, state_f in enumerate(calculated1holeStates):
+            for state_i in calculated1holeStates[(counter + 1):]:
                 i, jj_i, eigv_i = state_i[0]
                 f, jj_f, eigv_f = state_f[0]
                 
                 
-                inten_trans.append(((jj_i + 1) / multiplicity_JJ[i]) * (float(calculatedRadiativeTransitions[combCnt][2][1]) / rate_level[state_i[0]]))
+                inten_trans.append((float(jj_i + 1) / float(multiplicity_JJ[i])) * (float(calculatedRadiativeTransitions[combCnt][2][1]) / rate_level[state_i[0]]))
                 intensity_ev.append(inten_trans[-1] * float(calculatedRadiativeTransitions[combCnt][2][0]))
                 transition_width.append(rate_level_ev[state_i[0]] + rate_level_ev[state_f[0]])
 
@@ -2381,8 +2594,8 @@ def calculateSpectra(radiative_done, auger_done, satellite_done):
                                        configuration_1hole[i] + " \t " + \
                                        str(jj_i) + " \t " + \
                                        str(eigv_i) + " \t " + \
-                                       state_i[1][0] + " \t " + \
-                                       state_i[1][1] + " \t " + \
+                                       str(state_i[1][0]) + " \t " + \
+                                       str(state_i[1][1]) + " \t " + \
                                        shell_array[f] + " \t " + \
                                        configuration_1hole[f] + " \t " + \
                                        str(jj_f) + " \t " + \
@@ -2395,7 +2608,6 @@ def calculateSpectra(radiative_done, auger_done, satellite_done):
                                        str(transition_width[-1]) + "\n")
                 
                 combCnt += 1
-    
     
     
     # -------------------- WRITE AUGER SPECTRUM -------------------- #
@@ -2422,7 +2634,7 @@ def calculateSpectra(radiative_done, auger_done, satellite_done):
                 i, jj_i, eigv_i = state_i[0]
                 f, jj_f, eigv_f = state_f[0]
                 
-                inten_auger.append(((jj_i + 1) / multiplicity_JJ[i]) * (float(calculatedAugerTransitions[combCnt][2][1]) / rate_level[state_i[0]]))
+                inten_auger.append((float(jj_i + 1) / float(multiplicity_JJ[i])) * (float(calculatedAugerTransitions[combCnt][2][1]) / rate_level[state_i[0]]) if multiplicity_JJ[i] > 0 and rate_level[state_i[0]] > 0 else 0.0)
                 intensity_auger_ev.append(inten_auger[-1] * float(calculatedAugerTransitions[combCnt][2][0]))
                 transition_width_auger.append(rate_level_ev[state_i[0]] + rate_level_sat_ev[state_f[0]])
 
@@ -2462,21 +2674,21 @@ def calculateSpectra(radiative_done, auger_done, satellite_done):
         spectrum_sat.write("Transition register \t Shell IS \t IS Configuration \t IS 2JJ \t IS eigenvalue \t IS higher configuration \t IS percentage \t Shell FS \tFS Configuration \t FS 2JJ \t FS eigenvalue \t FS higher configuration \t FS percentage \t transition energy [eV] \t intensity \t intensity [eV] \t width [eV] \n")
 	
         combCnt = 0
-        for counter, state_i in enumerate(calculated2holesStates):
-            for state_f in calculated2holesStates[counter:]:
+        for counter, state_f in enumerate(calculated2holesStates):
+            for state_i in calculated2holesStates[(counter + 1):]:
                 i, jj_i, eigv_i = state_i[0]
                 f, jj_f, eigv_f = state_f[0]
                 
-                inten_trans_sat.append(((jj_i + 1) / multiplicity_JJ_sat[i]) * (float(calculatedSatelliteTransitions[combCnt][2][1]) / rate_level_sat[state_i[0]]))
+                inten_trans_sat.append((float(jj_i + 1) / float(multiplicity_JJ_sat[i])) * (float(calculatedSatelliteTransitions[combCnt][2][1]) / rate_level_sat[state_i[0]]) if multiplicity_JJ_sat[i] > 0 and rate_level_sat[state_i[0]] > 0 else 0.0)
                 intensity_sat_ev.append(inten_trans_sat[-1] * float(calculatedSatelliteTransitions[combCnt][2][0]))
-                transition_width_sat.append(rate_level_sat_ev[state_i] + rate_level_sat_ev[state_f])
+                transition_width_sat.append(rate_level_sat_ev[state_i[0]] + rate_level_sat_ev[state_f[0]])
                 
                 
                 print("\ntransition " + str(combCnt) + ": from " + configuration_2holes[i] + " 2J=" + str(jj_i) + " neig=" + str(eigv_i) + " -> " + configuration_2holes[f] + " 2J=" + str(jj_f) + " neig=" + str(eigv_f) + " rate = " + str(calculatedSatelliteTransitions[combCnt][2][1]) + " s-1  Energy = " + str(calculatedSatelliteTransitions[combCnt][2][0]) + " eV\n")
                 print(" Width = initial state (" + str(rate_level_sat_ev[state_i[0]]) + " eV) + final state (" + str(rate_level_sat_ev[state_f[0]]) + " eV) = " + str(transition_width_sat[-1]) + " eV\n")
 
                 print(" Intensity =  " + str(intensity_sat_ev[-1]) + "\n")
-                print(str(jj_i) + " \t " + str(calculatedSatelliteTransitions[combCnt][2][1]) + " \t " + multiplicity_JJ_sat[i] + " \t " + rate_level_sat[state_i[0]] + "\n")
+                print(str(jj_i) + " \t " + str(calculatedSatelliteTransitions[combCnt][2][1]) + " \t " + str(multiplicity_JJ_sat[i]) + " \t " + str(rate_level_sat[state_i[0]]) + "\n")
                 
                 spectrum_sat.write(str(combCnt) + " \t " + \
                                    shell_array_2holes[i] + " \t " + \
@@ -2495,19 +2707,18 @@ def calculateSpectra(radiative_done, auger_done, satellite_done):
                                    str(inten_trans_sat[-1]) + " \t " + \
                                    str(intensity_sat_ev[-1]) + " \t " + \
                                    str(transition_width_sat[-1]) + "\n")
-            
-            combCnt += 1
-
+                
+                combCnt += 1
 
 
 
 def GetParameters():
     global radiative_by_hand, auger_by_hand
     
-    initial_radiative = copy(radiative_by_hand)
+    initial_radiative = radiative_by_hand[:]
     
     deleted_radiative = 0
-    for i, counter in enumerate(initial_radiative):
+    for j, counter in enumerate(initial_radiative):
         i, jj, eigv = calculated1holeStates[counter][0]
         
         currDir = rootDir + "/" + directory_name + "/radiative/" + shell_array[i] + "/2jj_" + str(jj) + "/eigv_" + str(eigv)
@@ -2517,15 +2728,21 @@ def GetParameters():
         
         calculated1holeStates[counter][-1] = (higher_config, highest_percent, overlap, accuracy, Diff, welt)
         
-        if converged and Diff >= diffThreshold or overlap > overlapsThreshold:
-            del radiative_by_hand[i - deleted_radiative]
+        if converged and Diff <= diffThreshold or overlap < overlapsThreshold:
+            del radiative_by_hand[j - deleted_radiative]
             deleted_radiative += 1
     
     
-    initial_auger = copy(auger_by_hand)
+    if len(radiative_by_hand) == 0:
+        print("\n\nAll 1 hole states have converged!\n")
+    
+    writeResults1hole()
+    
+    
+    initial_auger = auger_by_hand[:]
     
     deleted_auger = 0
-    for i, counter in enumerate(initial_auger):
+    for j, counter in enumerate(initial_auger):
         i, jj, eigv = calculated2holesStates[counter][0]
         
         currDir = rootDir + "/" + directory_name + "/auger/" + shell_array_2holes[i] + "/2jj_" + str(jj) + "/eigv_" + str(eigv)
@@ -2535,11 +2752,43 @@ def GetParameters():
         
         calculated2holesStates[counter][-1] = (higher_config, highest_percent, overlap, accuracy, Diff, welt)
         
-        if converged and Diff >= diffThreshold or overlap > overlapsThreshold:
-            del auger_by_hand[i - deleted_auger]
+        if converged and Diff <= diffThreshold and overlap < overlapsThreshold:
+            del auger_by_hand[j - deleted_auger]
             deleted_auger += 1
     
+    
+    if len(auger_by_hand) == 0:
+        print("\n\nAll 2 hole states have converged!\n")
+    
+    writeResults2holes()
+    
 
+def loadParameters():
+    for counter, state in enumerate(calculated1holeStates):
+        i, jj, eigv = state[0]
+        
+        currDir = rootDir + "/" + directory_name + "/radiative/" + shell_array[i] + "/2jj_" + str(jj) + "/eigv_" + str(eigv)
+        currFileName = shell_array[i] + "_" + str(jj) + "_" + str(eigv)
+        
+        converged, failed_orbital, overlap, higher_config, highest_percent, accuracy, Diff, welt = checkOutput(currDir, currFileName)
+        
+        calculated1holeStates[counter].append((higher_config, highest_percent, overlap, accuracy, Diff, welt))
+    
+    print("\nLoaded 1 hole states parameters.")
+    
+    
+    for counter, state in enumerate(calculated2holesStates):
+        i, jj, eigv = state[0]
+        
+        currDir = rootDir + "/" + directory_name + "/auger/" + shell_array_2holes[i] + "/2jj_" + str(jj) + "/eigv_" + str(eigv)
+        currFileName = shell_array_2holes[i] + "_" + str(jj) + "_" + str(eigv)
+        
+        converged, failed_orbital, overlap, higher_config, highest_percent, accuracy, Diff, welt = checkOutput(currDir, currFileName)
+        
+        calculated2holesStates[counter].append((higher_config, highest_percent, overlap, accuracy, Diff, welt))
+    
+    print("\nLoaded 2 holes states parameters.\n")
+    
 
 
 def initializeEnergyCalc():
@@ -2634,13 +2883,41 @@ def initializeEnergyCalc():
             print "Enter directory name for the calculations: ",
             inp = raw_input().strip()
     
-        while os.path.exists(inp):
-            print("\n Directory name already exists!!!\n\n")
-            print "Please choose another name for the calculation directory: ",
-            inp = raw_input().strip()
-        
-        
         directory_name = inp
+        
+        if os.path.exists(directory_name):
+            print("\n Directory name already exists!!!\n\n")
+            print "Would you like to overwrite this directory? (y or n) : ",
+            inp = raw_input().strip()
+            while inp != 'y' and inp != 'n':
+                print("\n must be y or n!!!")
+                print "Would you like to overwrite this directory? (y or n) : ",
+                inp = raw_input().strip()
+            
+            if inp == 'n':
+                print "Please choose another name for the calculation directory: ",
+                inp = raw_input().strip()
+            else:
+                print("\n This will erase any previous data in the directory " + directory_name)
+                print "Are you sure you would like to proceed? (y or n) : ",
+                inp = raw_input().strip()
+                while inp != 'y' and inp != 'n':
+                    print("\n must be y or n!!!")
+                    print "Are you sure you would like to proceed? (y or n) : ",
+                    inp = raw_input().strip()
+                
+                if inp == 'y':
+                    shutil.rmtree(directory_name)
+                    return
+            
+            
+            while os.path.exists(inp):
+                print("\n Directory name already exists!!!\n\n")
+                print "Please choose another name for the calculation directory: ",
+                inp = raw_input().strip()
+            
+            directory_name = inp
+
 
 
 def setupElectronConfigs():
@@ -2678,7 +2955,7 @@ def setupElectronConfigs():
         for j in range(count):
             configuration_string += "(" + shell_array[j] + ")" + str(final_configuration[j]) + " "
         
-            b = copy.deepcopy(final_configuration)
+            b = final_configuration[:]
             b[j] = b[j] - 1
             
             configuration_1hole.append('')
@@ -2696,13 +2973,13 @@ def setupElectronConfigs():
                     configuration_1hole[j] += "(" + shell_array[g] + ")" + str(b[g]) + " "
                 
             
-            b = copy.deepcopy(final_configuration)
+            b = final_configuration[:]
             b[j] = b[j] - 1
 
             if b[j] > 0:
                 for k in range(j, count):
                     if b[k] > 0:
-                        b = copy.deepcopy(final_configuration)
+                        b = final_configuration[:]
                         
                         b[j] = b[j]-1
                         b[k] = b[k]-1
@@ -2744,6 +3021,25 @@ def setupElectronConfigs():
                     shell_array.append(colum2)
                     count += 1
             
+            electrons = []
+            
+            for config in configuration_1hole:
+                electrons.append(0)
+                
+                shells = config.split()
+                for shell in shells:
+                    res = re.split('(\d+)', shell)
+                    electrons[-1] += int(res[-2])
+            
+            for i, elec in enumerate(electrons[1:]):
+                if elec - electrons[0] != 0:
+                    print("Error: Unsuported varying number of electrons between 1 hole configurations.")
+                    print("Electrons for configuration: " + configuration_1hole[i + 1] + "; were " + str(elec) + ", expected: " + str(electrons[0]))
+                    print("Stopping...")
+                    sys.exit(1)
+            
+            elec_1hole = electrons[0]
+            
             configuration_2holes = []
             shell_array_2holes = []
             
@@ -2753,18 +3049,55 @@ def setupElectronConfigs():
                     configuration_2holes.append(colum1)
                     shell_array_2holes.append(colum2)
             
+            electrons = []
+            
+            for config in configuration_2holes:
+                electrons.append(0)
+                
+                shells = config.split()
+                for shell in shells:
+                    res = re.split('(\d+)', shell)
+                    electrons[-1] += int(res[-2])
+            
+            for i, elec in enumerate(electrons[1:]):
+                if elec - electrons[0] != 0:
+                    print("Error: Unsuported varying number of electrons between 1 hole configurations.")
+                    print("Electrons for configuration: " + configuration_2holes[i + 1] + "; were " + str(elec) + ", expected: " + str(electrons[0]))
+                    print("Stopping...")
+                    sys.exit(1)
+            
+            elec_2holes = electrons[0]
+            
+            if elec_1hole != elec_2holes + 1:
+                print("The number of electrons for 1 hole configurations have to be 1 more than for 2 holes configurations.")
+                print("Number of electrons for 1 hole: " + str(elec_1hole) + "; 2 holes: " + str(elec_2holes))
+                print("Stopping...")
+                sys.exit(1)
+            
             print("Configuration files correctly loaded !!!\n")
             shutil.copyfile(file_conf_rad, directory_name + "/backup_" + file_conf_rad)
             shutil.copyfile(file_conf_aug, directory_name + "/backup_" + file_conf_aug)
             
             print("backup of configuration files can be found at " + directory_name + "/backup_" + file_conf_rad + " and " + directory_name + "/backup_" + file_conf_aug + " !!!\n")
             
-            print "Enter number of electrons : ",
-            nelectrons = raw_input().strip()
-            while not nelectrons.isdigit():
-                print("\nnumber of electrons must be an integer!!!")
+            nelectrons = str(elec_1hole)
+            
+            print("Number of electrons for this calculation was determined as: " + str(elec_1hole))
+            print "Would you like to proceed with this value? (y or n) : ",
+            inp = raw_input().strip()
+            while inp != 'y' and inp != 'n':
+                print("\n must be y or n!!!")
+                print "Would you like to proceed with this value? (y or n) : ",
+                inp = raw_input().strip()
+            
+            if inp == 'n':
+                print("Warning: You are amazing if you know what you are doing but overwriting the number of electrons will probably lead to errors... good luck.")
                 print "Enter number of electrons : ",
                 nelectrons = raw_input().strip()
+                while not nelectrons.isdigit():
+                    print("\nnumber of electrons must be an integer!!!")
+                    print "Enter number of electrons : ",
+                    nelectrons = raw_input().strip()
             
         else:
             print("Configuration files do not exist !!! Place them alongside this script and name them:")
@@ -2774,6 +3107,13 @@ def setupElectronConfigs():
 
 
 def setupDirs():
+    os.mkdir(directory_name)
+    os.mkdir(directory_name + "/radiative")
+    os.mkdir(directory_name + "/auger")
+    os.mkdir(directory_name + "/transitions")
+
+
+def setupFiles():
     global file_cycle_log_1hole, file_cycle_log_2holes
     global file_sorted_1hole, file_sorted_2holes
     global file_calculated_radiative, file_calculated_auger, file_calculated_sat
@@ -2783,10 +3123,6 @@ def setupDirs():
     global file_rates_spectrum_diagram, file_rates_spectrum_auger, file_level_widths, file_rates_sums
     global file_rates_sums_sat, file_level_widths_sat, file_rates_spectrum_sat
     
-    os.mkdir(directory_name)
-    os.mkdir(directory_name + "/radiative")
-    os.mkdir(directory_name + "/auger")
-    os.mkdir(directory_name + "/transitions")
     
     file_cycle_log_1hole = rootDir + "/" + directory_name + "/" + directory_name + "_1hole_states_log.txt"
     file_cycle_log_2holes = rootDir + "/" + directory_name + "/" + directory_name + "_2holes_states_log.txt"
@@ -2818,14 +3154,20 @@ def setupDirs():
     file_level_widths_sat = rootDir + "/" + directory_name + "/" + directory_name + "_level_widths_sat.txt"
     file_rates_spectrum_sat = rootDir + "/" + directory_name + "/" + directory_name + "_spectrum_sat.txt"
 
-    
+
+def writeCalculationParameters():
     with open(file_parameters, 'w') as fp:
         fp.write("########################################## Output of the calculation parameters ##########################################################\n\n")
+        fp.write("Electron configurations are: " + ("read" if not label_auto else "automatic") + "\n")
         fp.write("Atomic number Z= " + atomic_number + "\n")
-        fp.write("Atom ground-state Neutral configuration:\n" + configuration_string + "\n")
+        fp.write("Number of electrons: " + nelectrons + "\n")
+        fp.write("Calculations performed with standard mass: " + nuc_massyorn + "\n")
+        
+        if nuc_massyorn == 'n':
+            fp.write("Nuclear mass: " + str(nuc_mass) + "\n")
+            fp.write("Nuclear model: " + nuc_model + "\n")
+        
         fp.write("Number of considered threads in the calculation= " + number_of_threads + "\n")
-        fp.write("Folder with files from this calculation: " + rootDir + "/" + directory_name + "\n\n")
-        fp.write("File of calculation parameters: " + file_parameters + "\n\n")
 
 
 def InitialPrompt():
@@ -2902,14 +3244,20 @@ if __name__ == "__main__":
     
     if not partial:
         initializeEnergyCalc()
+        
         setupDirs()
+        setupFiles()
         setupElectronConfigs()
+        
+        writeCalculationParameters()
     else:
         flags = checkPartial()
         
         if type(flags) == type(0):
             if flags == 1:
                 partial = False
+            elif flags == 2:
+                loadParameters()
             elif flags == 3:
                 resort = False
         else:
@@ -2918,6 +3266,7 @@ if __name__ == "__main__":
                 
                 complete_1hole, complete_2holes, last_calculated_cycle_1hole, last_calculated_cycle_2holes, last_calculated_state_1hole, last_calculated_state_2holes = flags
             elif len(flags) == 3:
+                resort = False
                 redo_transitions = True
                 
                 last_rad_calculated, last_aug_calculated, last_sat_calculated = flags
@@ -2952,7 +3301,7 @@ if __name__ == "__main__":
         calculate2holesStates()
     
     
-        print("Please check for convergence of the 1 and 2 holes states.")
+        print("\n\nPlease check for convergence of the 1 and 2 holes states.")
         print("File " + file_final_results + " contains the results for both calculations, as well as a list of flagged states.")
         print("Files " + file_final_results_1hole + " and " + file_final_results_2holes + "contain the results 1 and 2 holes respectively, as well as a list of flagged states.")
         #print("A helper script \"checkConvergence.py\" can also be used to check the convergence before continuing.")
@@ -2967,7 +3316,7 @@ if __name__ == "__main__":
                 print("New flagged states parameters can be found in the files " + file_final_results + ", " + file_final_results_1hole + ", " + file_final_results_2holes + ", for both 1 and 2 holes states.\n\n")
             
             print("To recheck flagged states please type GetParameters.")
-            print("If you would like to continue the rates calculation with the current states please type Continue.")
+            print("If you would like to continue the rates calculation with the current states please type Continue.\n")
             inp = raw_input().strip()
     
     
@@ -2981,8 +3330,8 @@ if __name__ == "__main__":
             calculate2holesStates(last_calculated_cycle_2holes, last_calculated_state_2holes)
     
     
-    print("Sorting lists of states...")
     if resort:
+        print("\nSorting lists of states...")
         sortCalculatedStates()
     
     
