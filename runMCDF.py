@@ -710,7 +710,7 @@ def checkOutput(currDir, currFileName):
     first = False
     firstOver = False
     
-    Diff = 0.0
+    Diff = -1.0
     
     welt = 0.0
     
@@ -774,7 +774,7 @@ def checkOutput(currDir, currFileName):
             
             if "ETOT (a.u.)" in line and not first:
                 first = True
-                Diff = round(float(outputContent[i + 1].split()[1]) - float(outputContent[i + 1].split()[2]), 6)
+                Diff = abs(round(float(outputContent[i + 1].split()[1]) - float(outputContent[i + 1].split()[2]), 6))
             
             if "Etot_(Welt.)=" in line:
                 welt = float(line.strip().split()[3])
@@ -847,7 +847,7 @@ def configureTransitionInputFile(template, \
     
 
 
-def configureStateInputFile(template, currDir, currFileName, config, jj, eigv, ne = '', failed_orbs = []):
+def configureStateInputFile(template, currDir, currFileName, config, jj, eigv, failed_orbs = [], ne = ''):
     if ne == '':
         nelec = nelectrons
     else:
@@ -1195,7 +1195,7 @@ def calculate1holeStates(starting_cycle = -1, starting_state = [(0, 0, 0)]):
                 parallel_1hole_failed.append(currDir + "/" + exe_file)
                 failed_first_cycle.append(counter)
             else:
-                if Diff >= diffThreshold or overlap >= overlapsThreshold:
+                if Diff < 0.0 or Diff >= diffThreshold or overlap >= overlapsThreshold:
                     configureStateInputFile(f05Template_10steps_nuc, currDir, currFileName, configuration_1hole[i], jj, eigv)
             
                     parallel_1hole_failed.append(currDir + "/" + exe_file)
@@ -1239,7 +1239,7 @@ def calculate1holeStates(starting_cycle = -1, starting_state = [(0, 0, 0)]):
                         
                         failed_first_cycle.append(counter)
                     else:
-                        if Diff >= diffThreshold or overlap >= overlapsThreshold:
+                        if Diff < 0.0 or Diff >= diffThreshold or overlap >= overlapsThreshold:
                             # Only add this state to the calculation if we reached the starting state
                             if found_cycle2 or starting_state == [(0, 0, 0)]:
                                 parallel_1hole_failed.append(currDir + "/" + exe_file)
@@ -1292,7 +1292,7 @@ def calculate1holeStates(starting_cycle = -1, starting_state = [(0, 0, 0)]):
                 
                 failed_second_cycle.append(counter)
             else:
-                if Diff >= diffThreshold or overlap >= overlapsThreshold:
+                if Diff < 0.0 or Diff >= diffThreshold or overlap >= overlapsThreshold:
                     if failed_orbital != '':
                         configureStateInputFile(f05Template_10steps_Forbs_nuc, currDir, currFileName, configuration_1hole[i], jj, eigv, failed_orbs)
             
@@ -1334,7 +1334,7 @@ def calculate1holeStates(starting_cycle = -1, starting_state = [(0, 0, 0)]):
                     
                     failed_second_cycle.append(counter)
                 else:
-                    if Diff >= diffThreshold or overlap >= overlapsThreshold:
+                    if Diff < 0.0 or Diff >= diffThreshold or overlap >= overlapsThreshold:
                         # Only add this state to the calculation if we reached the starting state
                         if found_cycle3 or starting_state == [(0, 0, 0)]:
                             parallel_1hole_failed.append(currDir + "/" + exe_file)
@@ -1394,7 +1394,7 @@ def calculate1holeStates(starting_cycle = -1, starting_state = [(0, 0, 0)]):
                 
                 failed_third_cycle.append(counter)
             else:
-                if Diff >= diffThreshold or overlap >= overlapsThreshold:
+                if Diff < 0.0 or Diff >= diffThreshold or overlap >= overlapsThreshold:
                     if failed_orbs[0] != "  1 5 0 1 :" and len(failed_orbs) == 2:
                         configureStateInputFile(f05Template_10steps_Forbs_nuc, currDir, currFileName, configuration_1hole[i], jj, eigv, failed_orbs)
             
@@ -1443,7 +1443,7 @@ def calculate1holeStates(starting_cycle = -1, starting_state = [(0, 0, 0)]):
                 
                 failed_third_cycle.append(counter)
             else:
-                if Diff >= diffThreshold or overlap >= overlapsThreshold:
+                if Diff < 0.0 or Diff >= diffThreshold or overlap >= overlapsThreshold:
                     # Only add this state to the calculation if we reached the starting state
                     if found_cycle4 or starting_state == [(0, 0, 0)]:
                         parallel_1hole_failed.append(currDir + "/" + exe_file)
@@ -1483,7 +1483,7 @@ def calculate1holeStates(starting_cycle = -1, starting_state = [(0, 0, 0)]):
         if not converged:
             radiative_by_hand.append(counter)
         else:
-            if Diff >= diffThreshold or overlap >= overlapsThreshold:
+            if Diff < 0.0 or Diff >= diffThreshold or overlap >= overlapsThreshold:
                 radiative_by_hand.append(counter)
     
     
@@ -1508,7 +1508,7 @@ def calculate2holesStates(starting_cycle = -1, starting_state = [(0, 0, 0)]):
             currDir = rootDir + "/" + directory_name + "/auger/" + shell_array_2holes[i]
             currFileName = shell_array_2holes[i]
             
-            configureStateInputFile(f05Template_nuc, currDir, currFileName, configuration_2holes[i], "100" if int(nelectrons) - 1 % 2 == 0 else "101", "100", int(nelectrons) - 1)
+            configureStateInputFile(f05Template_nuc, currDir, currFileName, configuration_2holes[i], "100" if int(nelectrons) - 1 % 2 == 0 else "101", "100", [], int(nelectrons) - 1)
             
             parallel_2holes_paths.append(currDir + "/" + exe_file)
             
@@ -1538,7 +1538,7 @@ def calculate2holesStates(starting_cycle = -1, starting_state = [(0, 0, 0)]):
                 currDir = rootDir + "/" + directory_name + "/auger/" + shell_array_2holes[i] + "/2jj_" + str(jj)
                 currFileName = shell_array_2holes[i] + "_" + str(jj)
                 
-                configureStateInputFile(f05Template_nuc, currDir, currFileName, configuration_2holes[i], jj, "100", int(nelectrons) - 1)
+                configureStateInputFile(f05Template_nuc, currDir, currFileName, configuration_2holes[i], jj, "100", [], int(nelectrons) - 1)
             
                 parallel_2holes_paths.append(currDir + "/" + exe_file)
         
@@ -1568,7 +1568,7 @@ def calculate2holesStates(starting_cycle = -1, starting_state = [(0, 0, 0)]):
                 currDir = rootDir + "/" + directory_name + "/auger/" + shell_array_2holes[i] + "/2jj_" + str(jj) + "/eigv_" + str(eigv)
                 currFileName = shell_array_2holes[i] + "_" + str(jj) + "_" + str(eigv)
                 
-                configureStateInputFile(f05Template_nuc, currDir, currFileName, configuration_2holes[i], jj, eigv, int(nelectrons) - 1)
+                configureStateInputFile(f05Template_nuc, currDir, currFileName, configuration_2holes[i], jj, eigv, [], int(nelectrons) - 1)
                 
                 parallel_2holes_paths.append(currDir + "/" + exe_file)
         
@@ -1638,13 +1638,13 @@ def calculate2holesStates(starting_cycle = -1, starting_state = [(0, 0, 0)]):
             
             if not converged:
                 
-                configureStateInputFile(f05Template_10steps_nuc, currDir, currFileName, configuration_2holes[i], jj, eigv, int(nelectrons) - 1)
+                configureStateInputFile(f05Template_10steps_nuc, currDir, currFileName, configuration_2holes[i], jj, eigv, [], int(nelectrons) - 1)
             
                 parallel_2holes_failed.append(currDir + "/" + exe_file)
                 failed_first_cycle.append(counter)
             else:
-                if Diff >= diffThreshold or overlap >= overlapsThreshold:
-                    configureStateInputFile(f05Template_10steps_nuc, currDir, currFileName, configuration_2holes[i], jj, eigv, int(nelectrons) - 1)
+                if Diff < 0.0 or Diff >= diffThreshold or overlap >= overlapsThreshold:
+                    configureStateInputFile(f05Template_10steps_nuc, currDir, currFileName, configuration_2holes[i], jj, eigv, [], int(nelectrons) - 1)
             
                     parallel_2holes_failed.append(currDir + "/" + exe_file)
                     failed_first_cycle.append(counter)
@@ -1686,7 +1686,7 @@ def calculate2holesStates(starting_cycle = -1, starting_state = [(0, 0, 0)]):
                         
                         failed_first_cycle.append(counter)
                     else:
-                        if Diff >= diffThreshold or overlap >= overlapsThreshold:
+                        if Diff < 0.0 or Diff >= diffThreshold or overlap >= overlapsThreshold:
                             # Only add this state to the calculation if we reached the starting state
                             if found_cycle2 or starting_state == [(0, 0, 0)]:
                                 parallel_2holes_failed.append(currDir + "/" + exe_file)
@@ -1734,15 +1734,15 @@ def calculate2holesStates(starting_cycle = -1, starting_state = [(0, 0, 0)]):
             
             if not converged:
                 if failed_orbital != '':
-                    configureStateInputFile(f05Template_10steps_Forbs_nuc, currDir, currFileName, configuration_2holes[i], jj, eigv, int(nelectrons) - 1, failed_orbs)
+                    configureStateInputFile(f05Template_10steps_Forbs_nuc, currDir, currFileName, configuration_2holes[i], jj, eigv, failed_orbs, int(nelectrons) - 1)
                 
                     parallel_2holes_failed.append(currDir + "/" + exe_file)
                 
                 failed_second_cycle.append(counter)
             else:
-                if Diff >= diffThreshold or overlap >= overlapsThreshold:
+                if Diff < 0.0 or Diff >= diffThreshold or overlap >= overlapsThreshold:
                     if failed_orbital != '':
-                        configureStateInputFile(f05Template_10steps_Forbs_nuc, currDir, currFileName, configuration_2holes[i], jj, eigv, int(nelectrons) - 1, failed_orbs)
+                        configureStateInputFile(f05Template_10steps_Forbs_nuc, currDir, currFileName, configuration_2holes[i], jj, eigv, failed_orbs, int(nelectrons) - 1)
             
                         parallel_2holes_failed.append(currDir + "/" + exe_file)
                     
@@ -1783,7 +1783,7 @@ def calculate2holesStates(starting_cycle = -1, starting_state = [(0, 0, 0)]):
                     
                     failed_second_cycle.append(counter)
                 else:
-                    if Diff >= diffThreshold or overlap >= overlapsThreshold:
+                    if Diff < 0.0 or Diff >= diffThreshold or overlap >= overlapsThreshold:
                         # Only add this state to the calculation if we reached the starting state
                         if found_cycle3 or starting_state == [(0, 0, 0)]:
                             parallel_2holes_failed.append(currDir + "/" + exe_file)
@@ -1830,27 +1830,27 @@ def calculate2holesStates(starting_cycle = -1, starting_state = [(0, 0, 0)]):
             
             if not converged:
                 if failed_orbs[0] != "  1 5 0 1 :" and len(failed_orbs) == 2:
-                    configureStateInputFile(f05Template_10steps_Forbs_nuc, currDir, currFileName, configuration_2holes[i], jj, eigv, int(nelectrons) - 1, failed_orbs)
+                    configureStateInputFile(f05Template_10steps_Forbs_nuc, currDir, currFileName, configuration_2holes[i], jj, eigv, failed_orbs, int(nelectrons) - 1)
             
                     parallel_2holes_failed.append(currDir + "/" + exe_file)
                 elif len(failed_orbs) == 2:
                     del failed_orbs[0]
                     
-                    configureStateInputFile(f05Template_10steps_Forbs_nuc, currDir, currFileName, configuration_2holes[i], jj, eigv, int(nelectrons) - 1, failed_orbs)
+                    configureStateInputFile(f05Template_10steps_Forbs_nuc, currDir, currFileName, configuration_2holes[i], jj, eigv, failed_orbs, int(nelectrons) - 1)
             
                     parallel_2holes_failed.append(currDir + "/" + exe_file)
                 
                 failed_third_cycle.append(counter)
             else:
-                if Diff >= diffThreshold or overlap >= overlapsThreshold:
+                if Diff < 0.0 or Diff >= diffThreshold or overlap >= overlapsThreshold:
                     if failed_orbs[0] != "  1 5 0 1 :" and len(failed_orbs) == 2:
-                        configureStateInputFile(f05Template_10steps_Forbs_nuc, currDir, currFileName, configuration_2holes[i], jj, eigv, int(nelectrons) - 1, failed_orbs)
+                        configureStateInputFile(f05Template_10steps_Forbs_nuc, currDir, currFileName, configuration_2holes[i], jj, eigv, failed_orbs, int(nelectrons) - 1)
             
                         parallel_2holes_failed.append(currDir + "/" + exe_file)
                     elif len(failed_orbs) == 2:
                         del failed_orbs[0]
                         
-                        configureStateInputFile(f05Template_10steps_Forbs_nuc, currDir, currFileName, configuration_2holes[i], jj, eigv, int(nelectrons) - 1, failed_orbs)
+                        configureStateInputFile(f05Template_10steps_Forbs_nuc, currDir, currFileName, configuration_2holes[i], jj, eigv, failed_orbs, int(nelectrons) - 1)
             
                         parallel_2holes_failed.append(currDir + "/" + exe_file)
                 
@@ -1891,7 +1891,7 @@ def calculate2holesStates(starting_cycle = -1, starting_state = [(0, 0, 0)]):
                 
                 failed_third_cycle.append(counter)
             else:
-                if Diff >= diffThreshold or overlap >= overlapsThreshold:
+                if Diff < 0.0 or Diff >= diffThreshold or overlap >= overlapsThreshold:
                     # Only add this state to the calculation if we reached the starting state
                     if found_cycle4 or starting_state == [(0, 0, 0)]:
                         parallel_2holes_failed.append(currDir + "/" + exe_file)
@@ -1931,7 +1931,7 @@ def calculate2holesStates(starting_cycle = -1, starting_state = [(0, 0, 0)]):
         if not converged:
             auger_by_hand.append(counter)
         else:
-            if Diff >= diffThreshold or overlap > overlapsThreshold:
+            if Diff < 0.0 or Diff >= diffThreshold or overlap > overlapsThreshold:
                 auger_by_hand.append(counter)
     
     
@@ -2728,7 +2728,7 @@ def GetParameters():
         
         calculated1holeStates[counter][-1] = (higher_config, highest_percent, overlap, accuracy, Diff, welt)
         
-        if converged and Diff <= diffThreshold or overlap < overlapsThreshold:
+        if converged and Diff >= 0.0 and Diff <= diffThreshold and overlap < overlapsThreshold:
             del radiative_by_hand[j - deleted_radiative]
             deleted_radiative += 1
     
@@ -2752,7 +2752,7 @@ def GetParameters():
         
         calculated2holesStates[counter][-1] = (higher_config, highest_percent, overlap, accuracy, Diff, welt)
         
-        if converged and Diff <= diffThreshold and overlap < overlapsThreshold:
+        if converged and Diff >= 0.0 and Diff <= diffThreshold and overlap < overlapsThreshold:
             del auger_by_hand[j - deleted_auger]
             deleted_auger += 1
     
