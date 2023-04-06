@@ -998,48 +998,61 @@ def executeBatchTransitionCalculation(parallel_paths, \
         
     
     
-def writeResults1hole():
-    with open(file_cycle_log_1hole, "a") as log_1hole:
-        log_1hole.write("CalculationFinalized\n")
+def writeResults1hole(update=False):
+    if not update:
+        with open(file_cycle_log_1hole, "a") as log_1hole:
+            log_1hole.write("CalculationFinalized\n")
     
     with open(file_results, "a") as resultDump:
         with open(file_final_results_1hole, "a") as stateResults_1hole:
             with open(file_final_results, "a") as stateResults:
-                resultDump.write("Fourth Cycle 1 Hole states\nShell, Shell index, 2J, Eigv, Higher Configuration, Percentage, Overlap, Accuracy, Energy Difference, Energy Welton\n")
-                stateResults_1hole.write("Calculated 1 Hole states\nShell, Shell index, 2J, Eigv, Higher Configuration, Percentage, Overlap, Accuracy, Energy Difference, Energy Welton\n")
-                stateResults.write("Calculated 1 Hole states\nShell, Shell index, 2J, Eigv, Higher Configuration, Percentage, Overlap, Accuracy, Energy Difference, Energy Welton\n")
-                for state in calculated1holeStates:
-                    resultDump.write(shell_array[state[0][0]] + ", " + str(state[0][0]) + ", " + str(state[0][1]) + ", " + str(state[0][2]) + ", " + state[1][0] + ", " + str(state[1][1]) + ", " + str(state[1][2]) + ", " + str(state[1][3]) + ", " + str(state[1][4]) + ", " + str(state[1][5]) + "\n")
-                    stateResults_1hole.write(shell_array[state[0][0]] + ", " + str(state[0][0]) + ", " + str(state[0][1]) + ", " + str(state[0][2]) + ", " + state[1][0] + ", " + str(state[1][1]) + ", " + str(state[1][2]) + ", " + str(state[1][3]) + ", " + str(state[1][4]) + ", " + str(state[1][5]) + "\n")
-                    stateResults.write(shell_array[state[0][0]] + ", " + str(state[0][0]) + ", " + str(state[0][1]) + ", " + str(state[0][2]) + ", " + state[1][0] + ", " + str(state[1][1]) + ", " + str(state[1][2]) + ", " + str(state[1][3]) + ", " + str(state[1][4]) + ", " + str(state[1][5]) + "\n")
+                if not update:
+                    resultDump.write("Fourth Cycle 1 Hole states\nShell, Shell index, 2J, Eigv, Higher Configuration, Percentage, Overlap, Accuracy, Energy Difference, Energy Welton\n")
+                    stateResults_1hole.write("Calculated 1 Hole states\nShell, Shell index, 2J, Eigv, Higher Configuration, Percentage, Overlap, Accuracy, Energy Difference, Energy Welton\n")
+                    stateResults.write("Calculated 1 Hole states\nShell, Shell index, 2J, Eigv, Higher Configuration, Percentage, Overlap, Accuracy, Energy Difference, Energy Welton\n")
+                    for state in calculated1holeStates:
+                        resultDump.write(shell_array[state[0][0]] + ", " + str(state[0][0]) + ", " + str(state[0][1]) + ", " + str(state[0][2]) + ", " + state[1][0] + ", " + str(state[1][1]) + ", " + str(state[1][2]) + ", " + str(state[1][3]) + ", " + str(state[1][4]) + ", " + str(state[1][5]) + "\n")
+                        stateResults_1hole.write(shell_array[state[0][0]] + ", " + str(state[0][0]) + ", " + str(state[0][1]) + ", " + str(state[0][2]) + ", " + state[1][0] + ", " + str(state[1][1]) + ", " + str(state[1][2]) + ", " + str(state[1][3]) + ", " + str(state[1][4]) + ", " + str(state[1][5]) + "\n")
+                        stateResults.write(shell_array[state[0][0]] + ", " + str(state[0][0]) + ", " + str(state[0][1]) + ", " + str(state[0][2]) + ", " + state[1][0] + ", " + str(state[1][1]) + ", " + str(state[1][2]) + ", " + str(state[1][3]) + ", " + str(state[1][4]) + ", " + str(state[1][5]) + "\n")
                 
-                stateResults_1hole.write("1 Hole by Hand\n")
-                stateResults.write("1 Hole by Hand\n")
-                for counter in radiative_by_hand:
-                    stateResults_1hole.write(shell_array[calculated1holeStates[counter][0][0]] + ", " + str(calculated1holeStates[counter][0][0]) + ", " + str(calculated1holeStates[counter][0][1]) + ", " + str(calculated1holeStates[counter][0][2]) + ", " + calculated1holeStates[counter][1][0] + ", " + str(calculated1holeStates[counter][1][1]) + ", " + str(calculated1holeStates[counter][1][2]) + ", " + str(calculated1holeStates[counter][1][3]) + ", " + str(calculated1holeStates[counter][1][4]) + ", " + str(calculated1holeStates[counter][1][5]) + "\n")
-                    stateResults.write(shell_array[calculated1holeStates[counter][0][0]] + ", " + str(calculated1holeStates[counter][0][0]) + ", " + str(calculated1holeStates[counter][0][1]) + ", " + str(calculated1holeStates[counter][0][2]) + ", " + calculated1holeStates[counter][1][0] + ", " + str(calculated1holeStates[counter][1][1]) + ", " + str(calculated1holeStates[counter][1][2]) + ", " + str(calculated1holeStates[counter][1][3]) + ", " + str(calculated1holeStates[counter][1][4]) + ", " + str(calculated1holeStates[counter][1][5]) + "\n")
+                if len(radiative_by_hand) > 0:
+                    stateResults_1hole.write("1 Hole by Hand\n")
+                    stateResults.write("1 Hole by Hand\n")
+                    for counter in radiative_by_hand:
+                        stateResults_1hole.write(shell_array[calculated1holeStates[counter][0][0]] + ", " + str(calculated1holeStates[counter][0][0]) + ", " + str(calculated1holeStates[counter][0][1]) + ", " + str(calculated1holeStates[counter][0][2]) + ", " + calculated1holeStates[counter][1][0] + ", " + str(calculated1holeStates[counter][1][1]) + ", " + str(calculated1holeStates[counter][1][2]) + ", " + str(calculated1holeStates[counter][1][3]) + ", " + str(calculated1holeStates[counter][1][4]) + ", " + str(calculated1holeStates[counter][1][5]) + "\n")
+                        stateResults.write(shell_array[calculated1holeStates[counter][0][0]] + ", " + str(calculated1holeStates[counter][0][0]) + ", " + str(calculated1holeStates[counter][0][1]) + ", " + str(calculated1holeStates[counter][0][2]) + ", " + calculated1holeStates[counter][1][0] + ", " + str(calculated1holeStates[counter][1][1]) + ", " + str(calculated1holeStates[counter][1][2]) + ", " + str(calculated1holeStates[counter][1][3]) + ", " + str(calculated1holeStates[counter][1][4]) + ", " + str(calculated1holeStates[counter][1][5]) + "\n")
+                else:
+                    stateResults_1hole.write("All 1 Hole states have converged\n")
+                    stateResults.write("All 1 Hole states have converged\n")
 
 
-def writeResults2holes():
-    with open(file_cycle_log_2holes, "a") as log_2holes:
-        log_2holes.write("CalculationFinalized\n")
+def writeResults2holes(update=False):
+    if not update:
+        with open(file_cycle_log_2holes, "a") as log_2holes:
+            log_2holes.write("CalculationFinalized\n")
     
     with open(file_results, "a") as resultDump:
         with open(file_final_results_2holes, "a") as stateResults_2holes:
             with open(file_final_results, "a") as stateResults:
-                resultDump.write("Fourth Cycle 2 Hole states\nShell, Shell index, 2J, Eigv, Higher Configuration, Percentage, Overlap, Accuracy, Energy Difference, Energy Welton\n")
-                stateResults_2holes.write("Calculated 2 Hole states\nShell, Shell index, 2J, Eigv, Higher Configuration, Percentage, Overlap, Accuracy, Energy Difference, Energy Welton\n")
-                stateResults.write("Calculated 2 Hole states\nShell, Shell index, 2J, Eigv, Higher Configuration, Percentage, Overlap, Accuracy, Energy Difference, Energy Welton\n")
-                for state in calculated2holesStates:
-                    resultDump.write(shell_array_2holes[state[0][0]] + ", " + str(state[0][0]) + ", " + str(state[0][1]) + ", " + str(state[0][2]) + ", " + state[1][0] + ", " + str(state[1][1]) + ", " + str(state[1][2]) + ", " + str(state[1][3]) + ", " + str(state[1][4]) + ", " + str(state[1][5]) + "\n")
-                    stateResults_2holes.write(shell_array_2holes[state[0][0]] + ", " + str(state[0][0]) + ", " + str(state[0][1]) + ", " + str(state[0][2]) + ", " + state[1][0] + ", " + str(state[1][1]) + ", " + str(state[1][2]) + ", " + str(state[1][3]) + ", " + str(state[1][4]) + ", " + str(state[1][5]) + "\n")
-                    stateResults.write(shell_array_2holes[state[0][0]] + ", " + str(state[0][0]) + ", " + str(state[0][1]) + ", " + str(state[0][2]) + ", " + state[1][0] + ", " + str(state[1][1]) + ", " + str(state[1][2]) + ", " + str(state[1][3]) + ", " + str(state[1][4]) + ", " + str(state[1][5]) + "\n")
+                if not update:
+                    resultDump.write("Fourth Cycle 2 Hole states\nShell, Shell index, 2J, Eigv, Higher Configuration, Percentage, Overlap, Accuracy, Energy Difference, Energy Welton\n")
+                    stateResults_2holes.write("Calculated 2 Hole states\nShell, Shell index, 2J, Eigv, Higher Configuration, Percentage, Overlap, Accuracy, Energy Difference, Energy Welton\n")
+                    stateResults.write("Calculated 2 Hole states\nShell, Shell index, 2J, Eigv, Higher Configuration, Percentage, Overlap, Accuracy, Energy Difference, Energy Welton\n")
+                    for state in calculated2holesStates:
+                        resultDump.write(shell_array_2holes[state[0][0]] + ", " + str(state[0][0]) + ", " + str(state[0][1]) + ", " + str(state[0][2]) + ", " + state[1][0] + ", " + str(state[1][1]) + ", " + str(state[1][2]) + ", " + str(state[1][3]) + ", " + str(state[1][4]) + ", " + str(state[1][5]) + "\n")
+                        stateResults_2holes.write(shell_array_2holes[state[0][0]] + ", " + str(state[0][0]) + ", " + str(state[0][1]) + ", " + str(state[0][2]) + ", " + state[1][0] + ", " + str(state[1][1]) + ", " + str(state[1][2]) + ", " + str(state[1][3]) + ", " + str(state[1][4]) + ", " + str(state[1][5]) + "\n")
+                        stateResults.write(shell_array_2holes[state[0][0]] + ", " + str(state[0][0]) + ", " + str(state[0][1]) + ", " + str(state[0][2]) + ", " + state[1][0] + ", " + str(state[1][1]) + ", " + str(state[1][2]) + ", " + str(state[1][3]) + ", " + str(state[1][4]) + ", " + str(state[1][5]) + "\n")
                 
-                stateResults_2holes.write("2 Hole by Hand\n")
-                stateResults.write("2 Hole by Hand\n")
-                for counter in auger_by_hand:
-                    stateResults_2holes.write(shell_array_2holes[calculated2holesStates[counter][0][0]] + ", " + str(calculated2holesStates[counter][0][0]) + ", " + str(calculated2holesStates[counter][0][1]) + ", " + str(calculated2holesStates[counter][0][2]) + ", " + calculated2holesStates[counter][1][0] + ", " + str(calculated2holesStates[counter][1][1]) + ", " + str(calculated2holesStates[counter][1][2]) + ", " + str(calculated2holesStates[counter][1][3]) + ", " + str(calculated2holesStates[counter][1][4]) + ", " + str(calculated2holesStates[counter][1][5]) + "\n")
-                    stateResults.write(shell_array_2holes[calculated2holesStates[counter][0][0]] + ", " + str(calculated2holesStates[counter][0][0]) + ", " + str(calculated2holesStates[counter][0][1]) + ", " + str(calculated2holesStates[counter][0][2]) + ", " + calculated2holesStates[counter][1][0] + ", " + str(calculated2holesStates[counter][1][1]) + ", " + str(calculated2holesStates[counter][1][2]) + ", " + str(calculated2holesStates[counter][1][3]) + ", " + str(calculated2holesStates[counter][1][4]) + ", " + str(calculated2holesStates[counter][1][5]) + "\n")
+                if len(auger_by_hand) > 0:
+                    stateResults_2holes.write("2 Hole by Hand\n")
+                    stateResults.write("2 Hole by Hand\n")
+                    for counter in auger_by_hand:
+                        stateResults_2holes.write(shell_array_2holes[calculated2holesStates[counter][0][0]] + ", " + str(calculated2holesStates[counter][0][0]) + ", " + str(calculated2holesStates[counter][0][1]) + ", " + str(calculated2holesStates[counter][0][2]) + ", " + calculated2holesStates[counter][1][0] + ", " + str(calculated2holesStates[counter][1][1]) + ", " + str(calculated2holesStates[counter][1][2]) + ", " + str(calculated2holesStates[counter][1][3]) + ", " + str(calculated2holesStates[counter][1][4]) + ", " + str(calculated2holesStates[counter][1][5]) + "\n")
+                        stateResults.write(shell_array_2holes[calculated2holesStates[counter][0][0]] + ", " + str(calculated2holesStates[counter][0][0]) + ", " + str(calculated2holesStates[counter][0][1]) + ", " + str(calculated2holesStates[counter][0][2]) + ", " + calculated2holesStates[counter][1][0] + ", " + str(calculated2holesStates[counter][1][1]) + ", " + str(calculated2holesStates[counter][1][2]) + ", " + str(calculated2holesStates[counter][1][3]) + ", " + str(calculated2holesStates[counter][1][4]) + ", " + str(calculated2holesStates[counter][1][5]) + "\n")
+                else:
+                    stateResults_2holes.write("All 2 Hole states have converged\n")
+                    stateResults.write("All 2 Hole states have converged\n")
+
 
 
 def calculate1holeStates(starting_cycle = -1, starting_state = [(0, 0, 0)]):
@@ -2517,6 +2530,7 @@ def calculateSpectra(radiative_done, auger_done, satellite_done):
         rate_level_sat_ev[state_i] = rate_level_sat[state_i] * hbar
     
     
+    print("############ Writing diagram level widths ###################")
     
     with open(file_level_widths, "w") as level_widths:
         level_widths.write(" Transition register \t  Shell \t Configuration \t 2JJ \t eigenvalue \t radiative width [s-1] \t  auger width [s-1] \t total width [s-1] \t total width [eV] \n")
@@ -2524,8 +2538,8 @@ def calculateSpectra(radiative_done, auger_done, satellite_done):
         for counter, state_i in enumerate(rate_level):
             i, jj_i, eigv_i = state_i
 
-            print("\nLevel " + str(counter) + " :  " + shell_array[i] + " " + configuration_1hole[i] + " 2J=" + str(jj_i) + " neig=" + str(eigv_i) + "\n")
-            print("\tradiative width = " + str(rate_level_radiative[state_i]) + " s-1 \t auger width = " + str(rate_level_auger[state_i]) + " s-1 \t total width = " + str(rate_level[state_i]) + " s-1 \t total width (eV) = " + str(rate_level_ev[state_i]) + " eV \n")
+            #print("\nLevel " + str(counter) + " :  " + shell_array[i] + " " + configuration_1hole[i] + " 2J=" + str(jj_i) + " neig=" + str(eigv_i) + "\n")
+            #print("\tradiative width = " + str(rate_level_radiative[state_i]) + " s-1 \t auger width = " + str(rate_level_auger[state_i]) + " s-1 \t total width = " + str(rate_level[state_i]) + " s-1 \t total width (eV) = " + str(rate_level_ev[state_i]) + " eV \n")
             
             level_widths.write(str(counter) + " \t " + \
                                shell_array[i] + " \t " + \
@@ -2538,15 +2552,16 @@ def calculateSpectra(radiative_done, auger_done, satellite_done):
                                str(rate_level_ev[state_i]) + "\n")
 
 
-
+    print("############ Writing satellite level widths ###################")
+    
     with open(file_level_widths_sat, "w") as level_widths_sat:
         level_widths_sat.write(" Transition register \t index sorted \t  Shell \t Configuration \t 2JJ \t eigenvalue \t radiative width [s-1] \t  total width [s-1] \t total width [eV] \n")
         
         for counter, state_i in enumerate(rate_level_sat):
             i, jj_i, eigv_i = state_i
             
-            print("\nLevel " + str(counter) + " :  " + shell_array_2holes[i] + " " + configuration_2holes[i] + " 2J=" + str(jj_i) + " neig=" + str(eigv_i) + "\n")
-            print("\tradiative width = " + str(rate_level_radiative_sat[state_i]) + " s-1 \t total width = " + str(rate_level_sat[state_i]) + " s-1 \t total width (eV) = " + str(rate_level_sat_ev[state_i]) + " eV \n")
+            #print("\nLevel " + str(counter) + " :  " + shell_array_2holes[i] + " " + configuration_2holes[i] + " 2J=" + str(jj_i) + " neig=" + str(eigv_i) + "\n")
+            #print("\tradiative width = " + str(rate_level_radiative_sat[state_i]) + " s-1 \t total width = " + str(rate_level_sat[state_i]) + " s-1 \t total width (eV) = " + str(rate_level_sat_ev[state_i]) + " eV \n")
             
             level_widths_sat.write(str(counter) + " \t  " + \
                                    shell_array_2holes[i] + " \t " + \
@@ -2583,11 +2598,11 @@ def calculateSpectra(radiative_done, auger_done, satellite_done):
                 intensity_ev.append(inten_trans[-1] * float(calculatedRadiativeTransitions[combCnt][2][0]))
                 transition_width.append(rate_level_ev[state_i[0]] + rate_level_ev[state_f[0]])
 
-                print("\ntransition " + str(combCnt) + " : from " + configuration_1hole[i] + " 2J=" + str(jj_i) + " neig=" + str(eigv_i) + " -> " + configuration_1hole[f] + " 2J=" + str(jj_f) + " neig=" + str(eigv_f) + " = " + str(calculatedRadiativeTransitions[combCnt][2][1]) + " s-1  Energy = " + str(calculatedRadiativeTransitions[combCnt][2][0]) + " eV\n")
-                print(" Width = initial state (" + str(rate_level_ev[state_i[0]]) + " eV) + final state (" + str(rate_level_ev[state_f[0]]) + " eV) = " + str(transition_width[-1]) + " eV\n")
+                #print("\ntransition " + str(combCnt) + " : from " + configuration_1hole[i] + " 2J=" + str(jj_i) + " neig=" + str(eigv_i) + " -> " + configuration_1hole[f] + " 2J=" + str(jj_f) + " neig=" + str(eigv_f) + " = " + str(calculatedRadiativeTransitions[combCnt][2][1]) + " s-1  Energy = " + str(calculatedRadiativeTransitions[combCnt][2][0]) + " eV\n")
+                #print(" Width = initial state (" + str(rate_level_ev[state_i[0]]) + " eV) + final state (" + str(rate_level_ev[state_f[0]]) + " eV) = " + str(transition_width[-1]) + " eV\n")
 
-                print(" Intensity =  " + str(inten_trans[-1]) + "\n")
-                print(str(jj_i) + " \t " + str(calculatedRadiativeTransitions[combCnt][2][1]) + " \t " + str(multiplicity_JJ[i]) + " \t " + str(rate_level[state_i[0]]) + "\n")
+                #print(" Intensity =  " + str(inten_trans[-1]) + "\n")
+                #print(str(jj_i) + " \t " + str(calculatedRadiativeTransitions[combCnt][2][1]) + " \t " + str(multiplicity_JJ[i]) + " \t " + str(rate_level[state_i[0]]) + "\n")
                 
                 spectrum_diagram.write(str(combCnt) + " \t " + \
                                        shell_array[i] + " \t " + \
@@ -2639,7 +2654,7 @@ def calculateSpectra(radiative_done, auger_done, satellite_done):
                 transition_width_auger.append(rate_level_ev[state_i[0]] + rate_level_sat_ev[state_f[0]])
 
 
-                print(str(combCnt) + " \t " + shell_array[i] + " \t " + configuration_1hole[i] + " \t " + str(jj_i) + " \t " + str(eigv_i) + " \t " + configuration_2holes[f] + " \t " + str(jj_f) + " \t " + str(eigv_f) + " \t " + str(calculatedAugerTransitions[combCnt][2][0]) + " \t " + str(inten_auger[-1]) + " \t " + str(intensity_auger_ev[-1]) + " \t " + str(transition_width_auger[-1]) + "\n")
+                #print(str(combCnt) + " \t " + shell_array[i] + " \t " + configuration_1hole[i] + " \t " + str(jj_i) + " \t " + str(eigv_i) + " \t " + configuration_2holes[f] + " \t " + str(jj_f) + " \t " + str(eigv_f) + " \t " + str(calculatedAugerTransitions[combCnt][2][0]) + " \t " + str(inten_auger[-1]) + " \t " + str(intensity_auger_ev[-1]) + " \t " + str(transition_width_auger[-1]) + "\n")
 
                 spectrum_auger.write(str(combCnt) + " \t " + \
                                      shell_array[i] + " \t " + \
@@ -2684,11 +2699,11 @@ def calculateSpectra(radiative_done, auger_done, satellite_done):
                 transition_width_sat.append(rate_level_sat_ev[state_i[0]] + rate_level_sat_ev[state_f[0]])
                 
                 
-                print("\ntransition " + str(combCnt) + ": from " + configuration_2holes[i] + " 2J=" + str(jj_i) + " neig=" + str(eigv_i) + " -> " + configuration_2holes[f] + " 2J=" + str(jj_f) + " neig=" + str(eigv_f) + " rate = " + str(calculatedSatelliteTransitions[combCnt][2][1]) + " s-1  Energy = " + str(calculatedSatelliteTransitions[combCnt][2][0]) + " eV\n")
-                print(" Width = initial state (" + str(rate_level_sat_ev[state_i[0]]) + " eV) + final state (" + str(rate_level_sat_ev[state_f[0]]) + " eV) = " + str(transition_width_sat[-1]) + " eV\n")
+                #print("\ntransition " + str(combCnt) + ": from " + configuration_2holes[i] + " 2J=" + str(jj_i) + " neig=" + str(eigv_i) + " -> " + configuration_2holes[f] + " 2J=" + str(jj_f) + " neig=" + str(eigv_f) + " rate = " + str(calculatedSatelliteTransitions[combCnt][2][1]) + " s-1  Energy = " + str(calculatedSatelliteTransitions[combCnt][2][0]) + " eV\n")
+                #print(" Width = initial state (" + str(rate_level_sat_ev[state_i[0]]) + " eV) + final state (" + str(rate_level_sat_ev[state_f[0]]) + " eV) = " + str(transition_width_sat[-1]) + " eV\n")
 
-                print(" Intensity =  " + str(intensity_sat_ev[-1]) + "\n")
-                print(str(jj_i) + " \t " + str(calculatedSatelliteTransitions[combCnt][2][1]) + " \t " + str(multiplicity_JJ_sat[i]) + " \t " + str(rate_level_sat[state_i[0]]) + "\n")
+                #print(" Intensity =  " + str(intensity_sat_ev[-1]) + "\n")
+                #print(str(jj_i) + " \t " + str(calculatedSatelliteTransitions[combCnt][2][1]) + " \t " + str(multiplicity_JJ_sat[i]) + " \t " + str(rate_level_sat[state_i[0]]) + "\n")
                 
                 spectrum_sat.write(str(combCnt) + " \t " + \
                                    shell_array_2holes[i] + " \t " + \
@@ -2736,7 +2751,7 @@ def GetParameters():
     if len(radiative_by_hand) == 0:
         print("\n\nAll 1 hole states have converged!\n")
     
-    writeResults1hole()
+    writeResults1hole(True)
     
     
     initial_auger = auger_by_hand[:]
@@ -2760,7 +2775,7 @@ def GetParameters():
     if len(auger_by_hand) == 0:
         print("\n\nAll 2 hole states have converged!\n")
     
-    writeResults2holes()
+    writeResults2holes(True)
     
 
 def loadParameters():
@@ -3217,6 +3232,85 @@ def InitialPrompt():
     partial = inp == 'partial'
     
 
+def midPrompt(partial_check=False):
+    if not partial_check:
+        print("\n\nPlease check for convergence of the 1 and 2 holes states.")
+        print("File " + file_final_results + " contains the results for both calculations, as well as a list of flagged states.")
+        print("Files " + file_final_results_1hole + " and " + file_final_results_2holes + "contain the results 1 and 2 holes respectively, as well as a list of flagged states.")
+        #print("A helper script \"checkConvergence.py\" can also be used to check the convergence before continuing.")
+        #print("This script will tell you which states did not reach proper convergence.\n")
+        
+        print("To re-check flagged states please type GetParameters.")
+        print("If you would like to continue the rates calculation with the current states please type:\n")
+        print("All - A full rate calculation will be performed for diagram, auger and satellite (shake-off and shake-up) decays, including the spectra calculations afterwards.\n")
+        print("Simple - A rate calculation will be performed for diagram and auger decays, including the spectra calculations afterwards.\n")
+        print("rates_all - A rate calculation will be performed for diagram, auger and satellite (shake-off and shake-up) decays, without any spectra calculations.\n")
+        print("rates - A rate calculation will be performed for diagram and auger decays, without any spectra calculations.\n")
+        inp = raw_input().strip()
+        while inp != "Continue" and inp != "All" and inp != "Simple" and inp != "rates_all" and inp != "rates":
+            if inp == "GetParameters":
+                GetParameters()
+                print("New flagged states parameters can be found in the files " + file_final_results + ", " + file_final_results_1hole + ", " + file_final_results_2holes + ", for both 1 and 2 holes states.\n\n")
+            
+            print("To recheck flagged states please type GetParameters.")
+            print("If you would like to continue the rates calculation with the current states please type Continue.\n")
+            inp = raw_input().strip()
+
+
+        type_calc = inp
+        
+        print("Continuing rate calculation with the current 1 and 2 holes states.\n")
+        
+        with open(file_parameters, "a") as fp:
+            fp.write("\nCalculation performed for: " + type_calc + "\n")
+        
+        print(80*"-" + "\n")
+    else:
+        with open(file_parameters, "r") as fp:
+            for line in fp:
+                if "Calculation performed for: " in line:
+                    type_calc = line.replace("Calculation performed for: ", "").strip()
+        
+        prev_type_calc = type_calc
+        
+        print("\nCalculation was previously loaded as: " + type_calc)
+        print "Would you like to proceed with this configuration? (y or n): ",
+        inp = raw_input().strip()
+        while inp != "y" and inp != "n":
+            print("\n must be y or n!!!")
+            print "Would you like to proceed with this configuration? (y or n): ",
+            inp = raw_input().strip()
+        
+        if inp == "n":
+            print("Choose a new type of calculation:\n")
+            print("All - A full rate calculation will be performed for diagram, auger and satellite (shake-off and shake-up) decays, including the spectra calculations afterwards.\n")
+            print("Simple - A rate calculation will be performed for diagram and auger decays, including the spectra calculations afterwards.\n")
+            print("rates_all - A rate calculation will be performed for diagram, auger and satellite (shake-off and shake-up) decays, without any spectra calculations.\n")
+            print("rates - A rate calculation will be performed for diagram and auger decays, without any spectra calculations.\n")
+            inp = raw_input().strip()
+            while inp != "Continue" and inp != "All" and inp != "Simple" and inp != "rates_all" and inp != "rates":
+                print("Must be either: All, Simple, rates_all or rates!!!\n")
+                print("Choose a new type of calculation:\n")
+                print("All - A full rate calculation will be performed for diagram, auger and satellite (shake-off and shake-up) decays, including the spectra calculations afterwards.\n")
+                print("Simple - A rate calculation will be performed for diagram and auger decays, including the spectra calculations afterwards.\n")
+                print("rates_all - A rate calculation will be performed for diagram, auger and satellite (shake-off and shake-up) decays, without any spectra calculations.\n")
+                print("rates - A rate calculation will be performed for diagram and auger decays, without any spectra calculations.\n")
+                inp = raw_input().strip()
+            
+            type_calc = inp
+            
+            parametersFileString = ''
+            
+            with open(file_parameters, "r") as fp:
+                parametersFileString = ''.join(fp.readlines())
+            
+            with open(file_parameters, "w") as fp:
+                fp.write(parametersFileString.replace("Calculation performed for: " + prev_type_calc, "Calculation performed for: " + type_calc)
+        
+    
+    return type_calc
+
+
 
 if __name__ == "__main__":
     InitialPrompt()
@@ -3296,33 +3390,13 @@ if __name__ == "__main__":
     
     setupTemplates()
     
+    type_calc = ''
+    
     if not partial:
         calculate1holeStates()
         calculate2holesStates()
-    
-    
-        print("\n\nPlease check for convergence of the 1 and 2 holes states.")
-        print("File " + file_final_results + " contains the results for both calculations, as well as a list of flagged states.")
-        print("Files " + file_final_results_1hole + " and " + file_final_results_2holes + "contain the results 1 and 2 holes respectively, as well as a list of flagged states.")
-        #print("A helper script \"checkConvergence.py\" can also be used to check the convergence before continuing.")
-        #print("This script will tell you which states did not reach proper convergence.\n")
         
-        print("To re-check flagged states please type GetParameters.")
-        print("If you would like to continue the rates calculation with the current states please type Continue.")
-        inp = raw_input().strip()
-        while inp != "Continue":
-            if inp == "GetParameters":
-                GetParameters()
-                print("New flagged states parameters can be found in the files " + file_final_results + ", " + file_final_results_1hole + ", " + file_final_results_2holes + ", for both 1 and 2 holes states.\n\n")
-            
-            print("To recheck flagged states please type GetParameters.")
-            print("If you would like to continue the rates calculation with the current states please type Continue.\n")
-            inp = raw_input().strip()
-    
-    
-        print("Continuing rate calculation with the current 1 and 2 holes states.\n")
-        
-        print(80*"-" + "\n")
+        type_calc = midPrompt()
     elif redo_energy_calc:
         if not complete_1hole:
             calculate1holeStates(last_calculated_cycle_1hole, last_calculated_state_1hole)
@@ -3335,8 +3409,6 @@ if __name__ == "__main__":
         sortCalculatedStates()
     
     
-    
-    
     if not partial:
         rates()
         radiative_done = True
@@ -3344,9 +3416,12 @@ if __name__ == "__main__":
         rates_auger()
         auger_done = True
         
-        rates_satellite()
-        satellite_done = True
+        if type_calc == "All" or type_calc == "rates_all":
+            rates_satellite()
+            satellite_done = True
     elif redo_transitions:
+        type_calc = midPrompt(True)
+        
         if redo_rad:
             rates()
             radiative_done = True
@@ -3361,13 +3436,15 @@ if __name__ == "__main__":
             rates_auger(last_aug_calculated)
             auger_done = True
         
-        if redo_sat:
-            rates_satellite()
-            satellite_done = True
-        elif partial_sat:
-            rates_satellite(last_sat_calculated)
-            satellite_done = True
+        if type_calc == "All" or type_calc == "rates_all":
+            if redo_sat:
+                rates_satellite()
+                satellite_done = True
+            elif partial_sat:
+                rates_satellite(last_sat_calculated)
+                satellite_done = True
        
        
     
-    calculateSpectra(radiative_done, auger_done, satellite_done)
+    if type_calc == "All" or type_calc == "Simple":
+        calculateSpectra(radiative_done, auger_done, satellite_done)
