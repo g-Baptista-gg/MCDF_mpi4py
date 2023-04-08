@@ -75,19 +75,26 @@ configuration_string = ''
 # Files where the 1 hole and 2 holes user configurations are stored
 file_conf_rad = "1hole_configurations.txt"
 file_conf_aug = "2holes_configurations.txt"
+file_conf_sat_aug = "3holes_configurations.txt"
+file_conf_shakeup = "shakeup_configurations.txt"
 
 # Log files to know where the calculation has stopped during the state calculation if something goes wrong
 file_cycle_log_1hole = ''
 file_cycle_log_2holes = ''
+file_cycle_log_3holes = ''
+file_cycle_log_shakeup = ''
 
 # Log files to store the states readily sorted for rate calculations
 file_sorted_1hole = ''
 file_sorted_2holes = ''
+file_sorted_3holes = ''
+file_sorted_shakeup = ''
 
 # Log files to store the calculated transitions
 file_calculated_radiative = ''
 file_calculated_auger = ''
-file_calculated_sat = ''
+file_calculated_shakeoff = ''
+file_calculated_shakeup = ''
 
 # File with the general parameters for the calculation
 file_parameters = ''
@@ -97,24 +104,30 @@ file_results = ''
 file_final_results = ''
 file_final_results_1hole = ''
 file_final_results_2holes = ''
+file_final_results_3holes = ''
+file_final_results_shakeup = ''
 
-# Files with the rates for diagram, auger and satellite transitions
+# Files with the rates for diagram, auger, shake-off and shake-up transitions
 file_rates = ''
 file_rates_auger = ''
-file_rates_satellites = ''
+file_rates_shakeoff = ''
+file_rates_shakeup = ''
 
-# Files with the calculated diagram, auger and satellite spectra
+# Files with the calculated diagram, auger, shake-off and shake-up spectra
 file_rates_spectrum_diagram = ''
 file_rates_spectrum_auger = ''
-file_rates_spectrum_sat = ''
+file_rates_spectrum_shakeoff = ''
+file_rates_spectrum_shakeup = ''
 
 # Files with rate sums, used for fluorescence yield determinations
 file_rates_sums = ''
-file_rates_sums_sat = ''
+file_rates_sums_shakeoff = ''
+file_rates_sums_shakeup = ''
 
 # Files with level sums, used for spectra calculation
 file_level_widths = ''
-file_level_widths_sat = ''
+file_level_widths_shakeoff = ''
+file_level_widths_shakeup = ''
 
 
 # ------------------------------------------------------------------ #
@@ -127,11 +140,26 @@ file_level_widths_sat = ''
 configuration_1hole = []
 # Shells for labeling the LS configuration of 1 hole states
 shell_array = []
+
 # Electron configurations for the 2 holes states
 configuration_2holes = []
 # Shells for labeling the LS configuration of 2 holes states
 shell_array_2holes = []
 
+# Electron configurations for the 3 holes states
+configuration_3holes = []
+# Shells for labeling the LS configuration of 3 holes states
+shell_array_3holes = []
+
+# Electron configurations for the shake-up states
+configuration_shakeup = []
+# Shells for labeling the LS configuration of shake-up states
+shell_array_shakeup = []
+
+# Flag to control if we can calculate 3 holes state configurations
+exist_3holes = False
+# Flag to control if we can calculate shake-up state configurations
+exist_shakeup = False
 
 # ------------------------------------------------------------------- #
 #        Variables to manage the calculated 1 and 2 hole states       #
@@ -143,11 +171,24 @@ shell_array_2holes = []
 calculated1holeStates = []
 # List of calculated 2 holes states and their convergence parameters
 calculated2holesStates = []
+# List of calculated 3 holes states and their convergence parameters
+calculated3holesStates = []
+# List of calculated shake-up states and their convergence parameters
+calculatedShakeupStates = []
 
 # List of 1 hole states that need to be calculated by hand
 radiative_by_hand = []
 # List of 2 holes states that need to be calculated by hand
 auger_by_hand = []
+# List of 3 holes states that need to be calculated by hand
+sat_auger_by_hand = []
+# List of shake-up states that need to be calculated by hand
+shakeup_by_hand = []
+
+# Flag to control if we chose to calculate 3 holes state configurations
+calculate_3holes = False
+# Flag to control if we chose to calculate shake-up state configurations
+calculate_shakeup = False
 
 
 # ------------------------------------------------------------------- #
@@ -163,6 +204,8 @@ calculatedRadiativeTransitions = []
 calculatedAugerTransitions = []
 # List of calculated satellite transitions and their energy, rate and multipoles
 calculatedSatelliteTransitions = []
+# List of calculated shake-up transitions and their energy, rate and multipoles
+calculatedShakeupTransitions = []
 
 
 # -------------------------------------------------------- #
@@ -244,94 +287,116 @@ def setupTemplates():
 
 
 def loadElectronConfigs():
-    global lines_conf, arr_conf, nb_lines_conf, lines_fir, arr_fir, nb_lines_fir, final_configuration, shell_array, configuration_string
-    global configuration_1hole, configuration_2holes, shell_array_2holes
+    global lines_conf, arr_conf, nb_lines_conf, lines_fir, arr_fir, nb_lines_fir, final_configuration, configuration_string
+    global configuration_1hole, shell_array
+    global configuration_2holes, shell_array_2holes
+    global configuration_3holes, shell_array_3holes
+    global configuration_shakeup, shell_array_shakeup
+    global exist_3holes, exist_shakeup, calculate_3holes, calculate_shakeup
+    
     
     count = 0
     
     if label_auto:
-        with open('Conf.csv', 'r') as f:
-            lines_conf = f.readlines()
-
         enum = int(atomic_number) - 1
-        arr_conf = [int(x) for x in lines_conf[enum].strip().split(',')]
-        nb_lines_conf = len(lines_conf)
-
-        with open('Fir.csv', 'r') as f:
-            lines_fir = f.readlines()
-
-        arr_fir = [int(x) for x in lines_fir[enum].strip().split(',')]
-        nb_lines_fir = len(lines_fir)
-
-        final_configuration = []
-        shell_array = []
-        for i in range(len(arr_conf)):
-            if arr_conf[i] != 0:
-                final_configuration.append(arr_conf[i])
-                shell_array.append(shells[i])
-                count += 1
-
-
-        count_au = 0
-
-        configuration_string = ''
-        for j in range(count):
-            configuration_string += "(" + shell_array[j] + ")" + str(final_configuration[j]) + " "
         
-            b = final_configuration[:]
-            b[j] = b[j] - 1
+        # Initialize the array of shells and electron number
+        remain_elec = enum
+        electron_array = []
+        
+        i = 0
+        while remain_elec > 0:
+            shell_array.append(shells[i])
             
-            configuration_1hole.append('')
-            
-            if count <= 10:
-                for g in range(count):
-                    configuration_1hole[j] += "(" + shell_array[g] + ")" + str(b[g]) + " "
-                
+            if remain_elec >= electronspershell[i]:
+                configuration_string += "(" + shell_array[i] + ")" + str(electronspershell[i]) + " "
+                electron_array.append(electronspershell[i])
             else:
-                for g in range(9):
-                    configuration_1hole[j] += "(" + shell_array[g] + ")" + str(b[g]) + " "
-                
-                configuration_1hole[j]+="\\\n    "
-                for g in range(9, count):
-                    configuration_1hole[j] += "(" + shell_array[g] + ")" + str(b[g]) + " "
-                
+                configuration_string += "(" + shell_array[i] + ")" + str(remain_elec) + " "
+                electron_array.append(remain_elec)
             
-            b = final_configuration[:]
-            b[j] = b[j] - 1
-
-            if b[j] > 0:
-                for k in range(j, count):
-                    if b[k] > 0:
-                        b = final_configuration[:]
+            remain_elec -= electronspershell[i]
+            i += 1
+        
+        exist_3holes = True
+        exist_shakeup = True
+        
+        for i in range(len(shell_array)):
+            # Generate the combinations of 1 hole configurations
+            b = electron_array[:]
+            b[i] -= 1
+            
+            if b[i] >= 0:
+                configuration_1hole.append('')
+                
+                for j in range(len(shell_array)):
+                    configuration_1hole[-1] += "(" + shell_array[j] + ")" + str(b[j]) + " "
+                    
+                    if j >= i:
+                        # Generate the combinations of 2 hole configurations                        
+                        b[j] -= 1
                         
-                        b[j] = b[j]-1
-                        b[k] = b[k]-1
-                        
-                        configuration_2holes.append('')
-                        
-                        if count <= 10:
-                            for g in range(count):
-                                configuration_2holes[count_au] += "(" + shell_array[g] + ")" + str(b[g]) + " "
+                        if b[j] >= 0:
+                            shell_array_2holes.append(shell_array[i] + "_" + shell_array[j])
+                            configuration_2holes.append('')
                             
-                        else:
-                            for g in range(9):
-                                configuration_2holes[count_au] += "(" + shell_array[g] + ")" + str(b[g]) + " "
+                            for h in range(len(shell_array)):
+                                configuration_2holes[-1] += "(" + shell_array[h] + ")" + str(b[h]) + " "
+                                
+                                if h >= j:
+                                    # Generate the combinations of 3 hole configurations
+                                    b[h] -= 1
+                                    
+                                    if b[h] >= 0:
+                                        shell_array_3holes.append(shell_array[i] + "_" + shell_array[j] + "_" + shell_array[h])
+                                        configuration_3holes.append('')
+                                        
+                                        for k in range(len(shell_array)):
+                                            configuration_3holes[-1] += "(" + shell_array[k] + ")" + str(b[k]) + " "
+                                    
+                                    b[h] += 1
                             
-                            configuration_2holes[count_au] += "\\\n    "
-                            
-                            for g in range(9, count):
-                                configuration_2holes[count_au] += "(" + shell_array[g] + ")" + str(b[g]) + " "
-                            
-                        
-                        shell_array_2holes[count_au] = shell_array[k] + "_" + shell_array[j]
-                        
-                        count_au += 1
+                            for h in range(len(shells)):
+                                if h >= j:
+                                    # Generate the combinations of shake-up configurations
+                                    if h < len(shell_array):
+                                        b[h] += 1
+                                    
+                                    if b[h] <= electronspershell[h]:
+                                        shell_array_shakeup.append(shell_array[i] + "_" + shell_array[j] + "-" + shell_array[h])
+                                        configuration_shakeup.append('')
+                                        
+                                        for k, shell in enumerate(shells):
+                                            if k < len(shell_array):
+                                                configuration_shakeup[-1] += "(" + shell_array[k] + ")" + str(b[k]) + " "
+                                            elif h == k:
+                                                configuration_shakeup[-1] += "(" + shell + ")1"
+                                            
+        
         
         print("Loaded the automatically generated electron configuration:\n\n")
         print("Element Z=" + atomic_number + "\n")
         print("Atom ground-state Neutral configuration:\n" + configuration_string + "\n")
         print("Number of occupied orbitals = " + str(count) + "\n")
+        
+        print("\nBoth 3 hole configurations and shake-up configurations were generated.\n")
+        print "Would you like to calculate these configurations? - both, 3holes or shakeup : ",
+        inp = raw_input().strip()
+        while inp != 'both' or inp != '3holes' or inp != 'shakeup':
+            print("\n keyword must be both, 3holes or shakeup!!!")
+            print "Would you like to calculate this configurations? - both, 3holes or shakeup : ",
+            inp = raw_input().strip()
+        
+        if inp == 'both':
+            calculate_3holes = True
+            calculate_shakeup = True
+        elif inp == '3holes':
+            calculate_3holes = True
+        elif inp == 'shakeup':
+            calculate_shakeup = True
     else:
+        # Check if the files with the configurations for 1 and 2 holes to be read exist
+        
         if os.path.exists(directory_name + "/backup_" + file_conf_rad) and os.path.exists(directory_name + "/backup_" + file_conf_aug):
             configuration_1hole = []
             shell_array = []
@@ -354,16 +419,55 @@ def loadElectronConfigs():
             
             print("Configuration files correctly loaded !!!\n")
         else:
-            print("Configuration files do not exist !!! Place them in the existing calculations folder with the names:")
-            print("backup_" + file_conf_rad)
-            print("backup_" + file_conf_aug)
+            print("Configuration files do not exist !!! Place them alongside this script and name them:")
+            print(file_conf_rad)
+            print(file_conf_aug)
             sys.exit(1)
+        
+        
+        # Check if the files with the configurations for 3 holes to be read exist
+        
+        if os.path.exists(directory_name + "/backup_" + file_conf_sat_aug):
+            configuration_3holes = []
+            shell_array = []
+            
+            with open(file_conf_sat_aug, "r") as f:
+                for line in f:
+                    colum1, colum2 = line.strip().split(",")
+                    configuration_3holes.append(colum1)
+                    shell_array_3holes.append(colum2)
+                    count += 1
+            
+            print("Configuration files correctly loaded for 3 holes !!!\n")
+        else:
+            print("Configuration files do not exist for 3 holes !!! If you wish to calculate them, place the file alongside this script and name them:")
+            print("backup_" + file_conf_sat_aug)
+        
+        
+        # Check if the files with the configurations for shakeup to be read exist
+        
+        if os.path.exists(directory_name + "/backup_" + file_conf_shakeup):
+            configuration_shakeup = []
+            shell_array_shakeup = []
+            
+            with open(file_conf_shakeup, "r") as f:
+                for line in f:
+                    colum1, colum2 = line.strip().split(",")
+                    configuration_shakeup.append(colum1)
+                    shell_array_shakeup.append(colum2)
+            
+            print("Configuration files correctly loaded for Shake-up !!!\n")
+        else:
+            print("Configuration files do not exist for shake-up !!! If you wish to calculate them, place the file alongside this script and name them:")
+            print("backup_" + file_conf_shakeup)
+    
 
 
 def checkPartial():
     global directory_name, parallel_max_length, machine_type, number_max_of_threads
     global label_auto, atomic_number, nelectrons, nuc_massyorn, nuc_mass, nuc_model, number_of_threads
-    global calculated1holeStates, calculated2holesStates
+    global calculated1holeStates, calculated2holesStates, calculated3holesStates, calculatedShakeupStates
+    global exist_3holes, exist_shakeup, calculate_3holes, calculate_shakeup
     
     
     print "Enter directory name for the calculations: ",
@@ -397,6 +501,12 @@ def checkPartial():
         for line in fp:
             if "Electron configurations are:" in line:
                 label_auto = line.replace("Electron configurations are:", "").strip() == "automatic"
+            elif "3 hole configurations are being calculated!" in line:
+                exist_3holes = True
+                calculate_3holes = True
+            elif "Shake-up configurations are being calculated!" in line:
+                exist_shakeup = True
+                calculate_shakeup = True
             elif "Atomic number Z= " in line:
                 atomic_number = line.replace("Atomic number Z= ", "").strip()
             elif "Number of electrons:" in line:
@@ -418,16 +528,22 @@ def checkPartial():
     
     
     def readStateList():
-        global calculated1holeStates, calculated2holesStates
+        global calculated1holeStates, calculated2holesStates, calculate3holesStates, calculateShakeupStates
         
         complete_1hole = False
         complete_2holes = False
+        complete_3holes = False
+        complete_shakeup = False
         
         last_calculated_cycle_1hole = 0
         last_calculated_cycle_2holes = 0
+        last_calculated_cycle_3holes = 0
+        last_calculated_cycle_shakeup = 0
         
         last_calculated_state_1hole = [(0, 0, 0)]
         last_calculated_state_2holes = [(0, 0, 0)]
+        last_calculated_state_3holes = [(0, 0, 0)]
+        last_calculated_state_shakeup = [(0, 0, 0)]
         
         with open(file_cycle_log_1hole, "r") as calculated1hole:
             if "1 hole states discovery done." in calculated1hole.readline():
@@ -471,14 +587,64 @@ def checkPartial():
                     if not complete_2holes:
                         calculated2holesStates.append([tuple(int(qn) for qn in line.strip().split(", "))])
         
-        return complete_1hole, complete_2holes, last_calculated_cycle_1hole, last_calculated_state_1hole, last_calculated_cycle_2holes, last_calculated_state_2holes
+        if calculate_3holes:
+            with open(file_cycle_log_3holes, "r") as calculated3holes:
+                if "3 holes states discovery done." in calculated3holes.readline():
+                    calculated3holes.readline()
+                    for line in calculated3holes:
+                        if "ListEnd" in line:
+                            complete_3holes = True
+                        
+                        if "First Cycle Last Calculated:" in line:
+                            last_calculated_cycle_3holes = 1
+                        elif "Second Cycle Last Calculated:" in line:
+                            last_calculated_cycle_3holes = 2
+                        elif "Third Cycle Last Calculated:" in line:
+                            last_calculated_cycle_3holes = 3
+                        elif "Fourth Cycle Last Calculated:" in line or "CalculationFinalized" in line:
+                            last_calculated_cycle_3holes = 4
+                        elif last_calculated_cycle_3holes > 0 and line != "\n":
+                            last_calculated_state_3holes = [tuple(int(qn) for qn in line.strip().split(", "))]
+                        
+                        if not complete_3holes:
+                            calculate3holesStates.append([tuple(int(qn) for qn in line.strip().split(", "))])
+        
+        if calculate_shakeup:
+            with open(file_cycle_log_shakeup, "r") as calculatedShakeup:
+                if "shake-up states discovery done." in calculatedShakeup.readline():
+                    calculatedShakeup.readline()
+                    for line in calculatedShakeup:
+                        if "ListEnd" in line:
+                            complete_shakeup = True
+                        
+                        if "First Cycle Last Calculated:" in line:
+                            last_calculated_cycle_shakeup = 1
+                        elif "Second Cycle Last Calculated:" in line:
+                            last_calculated_cycle_shakeup = 2
+                        elif "Third Cycle Last Calculated:" in line:
+                            last_calculated_cycle_shakeup = 3
+                        elif "Fourth Cycle Last Calculated:" in line or "CalculationFinalized" in line:
+                            last_calculated_cycle_shakeup = 4
+                        elif last_calculated_cycle_shakeup > 0 and line != "\n":
+                            last_calculated_state_shakeup = [tuple(int(qn) for qn in line.strip().split(", "))]
+                        
+                        if not complete_shakeup:
+                            calculateShakeupStates.append([tuple(int(qn) for qn in line.strip().split(", "))])
+        
+        return complete_1hole, complete_2holes, complete_3holes, complete_shakeup, \
+                last_calculated_cycle_1hole, last_calculated_state_1hole, \
+                last_calculated_cycle_2holes, last_calculated_state_2holes, \
+                last_calculated_cycle_3holes, last_calculated_state_3holes, \
+                last_calculated_cycle_shakeup, last_calculated_state_shakeup
     
     
     def readSortedStates():
-        global calculated1holeStates, calculated2holesStates
+        global calculated1holeStates, calculated2holesStates, calculated3holesStates, calculatedShakeupStates
         
         complete_sorted_1hole = False
         complete_sorted_2holes = False
+        complete_sorted_3holes = False
+        complete_sorted_shakeup = False
         
         with open(file_sorted_1hole, "r") as sorted_1hole:
             if len(sorted_1hole.readlines()) == len(calculated1holeStates):
@@ -504,10 +670,37 @@ def checkPartial():
                     state_parameters = tuple(par if i == 0 else float(par) for i, par in enumerate(line.strip().split("; ")[1].split(", ")))
                     calculated2holesStates.append([state_nums, state_parameters])
         
-        return complete_sorted_1hole, complete_sorted_2holes
+        if calculate_3holes:
+            with open(file_sorted_3holes, "r") as sorted_3holes:
+                if len(sorted_3holes.readlines()) == len(calculated3holesStates):
+                    complete_sorted_3holes = True
+            
+            if complete_sorted_3holes:
+                with open(file_sorted_3holes, "r") as sorted_3holes:
+                    calculated3holesStates = []
+                    for line in sorted_3holes:
+                        state_nums = tuple(int(qn) for qn in line.strip().split("; ")[0].split(", "))
+                        state_parameters = tuple(par if i == 0 else float(par) for i, par in enumerate(line.strip().split("; ")[1].split(", ")))
+                        calculated3holesStates.append([state_nums, state_parameters])
+        
+        if calculate_shakeup:
+            with open(file_sorted_shakeup, "r") as sorted_shakeup:
+                if len(sorted_shakeup.readlines()) == len(calculatedShakeupStates):
+                    complete_sorted_shakeup = True
+            
+            if complete_sorted_shakeup:
+                with open(file_sorted_shakeup, "r") as sorted_shakeup:
+                    calculatedShakeupStates = []
+                    for line in sorted_shakeup:
+                        state_nums = tuple(int(qn) for qn in line.strip().split("; ")[0].split(", "))
+                        state_parameters = tuple(par if i == 0 else float(par) for i, par in enumerate(line.strip().split("; ")[1].split(", ")))
+                        calculatedShakeupStates.append([state_nums, state_parameters])
+        
+        return complete_sorted_1hole, complete_sorted_2holes, complete_sorted_3holes, complete_sorted_shakeup
     
     
     def readTransitions():
+        # Radiative transitions
         if os.path.isfile(file_calculated_radiative):
             with open(file_calculated_radiative, "r") as rad_calculated:
                 rad_calculated.readline()
@@ -520,6 +713,7 @@ def checkPartial():
         else:
             last_rad_calculated = False
         
+        # Auger transitions
         if os.path.isfile(file_calculated_auger):
             with open(file_calculated_auger, "r") as aug_calculated:
                 aug_calculated.readline()
@@ -532,8 +726,9 @@ def checkPartial():
         else:
             last_aug_calculated = False
         
-        if os.path.isfile(file_calculated_sat):
-            with open(file_calculated_sat, "r") as sat_calculated:
+        # Shake-off transitions
+        if os.path.isfile(file_calculated_shakeoff):
+            with open(file_calculated_shakeoff, "r") as sat_calculated:
                 sat_calculated.readline()
                 for line in sat_calculated:
                     if line != "\n":
@@ -544,7 +739,21 @@ def checkPartial():
         else:
             last_sat_calculated = False
         
-        return last_rad_calculated, last_aug_calculated, last_sat_calculated
+        # Shake-up transitions
+        if os.path.isfile(file_calculated_shakeup):
+            with open(file_calculated_shakeup, "r") as shakeup_calculated:
+                shakeup_calculated.readline()
+                for line in shakeup_calculated:
+                    if line != "\n":
+                        state_i = tuple(int(qn) for qn in line.strip().split(" => ")[0].split(", "))
+                        state_f = tuple(int(qn) for qn in line.strip().split(" => ")[1].split(", "))
+                        
+                        last_shakeup_calculated = [state_i, state_f]
+        else:
+            last_shakeup_calculated = False
+        
+        
+        return last_rad_calculated, last_aug_calculated, last_sat_calculated, last_shakeup_calculated
     
     
     if not os.path.isfile(exe_file):
@@ -553,49 +762,171 @@ def checkPartial():
     else:
         print("\n############## Energy Calculations with MCDGME code  ##############\n\n")
         
-        if any([os.path.isfile(file_calculated_radiative), os.path.isfile(file_calculated_auger), os.path.isfile(file_calculated_sat)]):
+        # Check if any of the files with transitions exist
+        if any([os.path.isfile(file_calculated_radiative), os.path.isfile(file_calculated_auger), os.path.isfile(file_calculated_shakeoff), os.path.isfile(file_calculated_shakeup)]):
             print("\nFound files with the last calculated transitions.")
             
+            # Check for consistency if the files with the states logs exist
+            # Only the 1 hole and 2 hole are strictly necessary to continue with calculations
             if os.path.isfile(file_cycle_log_1hole) and os.path.isfile(file_cycle_log_2holes):
                 print("\nFound file with the list of discovered states.")
-                complete_1hole, complete_2holes, last_calculated_cycle_1hole, last_calculated_state_1hole, last_calculated_cycle_2holes, last_calculated_state_2holes = readStateList()
                 
-                if complete_1hole and complete_2holes and last_calculated_cycle_1hole == 4 and last_calculated_cycle_2holes == 4 and last_calculated_state_1hole[0] == calculated1holeStates[-1][0] and last_calculated_state_2holes[0] == calculated2holesStates[-1][0]:
-                    print("\nVerifyed that the file with the list of calculated states is consistent.")
-                    print("Proceding with this list.")
-                else:
-                    print("\nError while checking the file with calculated states.\n")
-                    print("Flag                          -> Value ; Expected:")
-                    print("Completed 1 hole              -> " + str(complete_1hole) + " ; True")
-                    print("Completed 2 holes             -> " + str(complete_2holes) + " ; True")
-                    print("Last calculated cycle 1 hole  -> " + str(last_calculated_cycle_1hole) + "    ; 4")
-                    print("Last calculated cycle 2 holes -> " + str(last_calculated_cycle_2holes) + "    ; 4")
-                    print("Last calculated state 1 hole  -> " + ', '.join([str(qn) for qn in last_calculated_state_1hole[0]]) + " ; " + ', '.join([str(qn) for qn in calculated1holeStates[-1][0]]))
-                    print("Last calculated state 2 holes -> " + ', '.join([str(qn) for qn in last_calculated_state_2holes[0]]) + " ; " + ', '.join([str(qn) for qn in calculated2holesStates[-1][0]]))
-                    
-                    print("\nPicking up from the last calculated states...\n")
-                    
-                    return complete_1hole, complete_2holes, last_calculated_cycle_1hole, last_calculated_cycle_2holes, last_calculated_state_1hole[0], last_calculated_state_2holes[0]
+                # Read the state list and get flags to perform some more flow control
+                complete_1hole, complete_2holes, complete_3holes, complete_shakeup, \
+                last_calculated_cycle_1hole, last_calculated_state_1hole, \
+                last_calculated_cycle_2holes, last_calculated_state_2holes, \
+                last_calculated_cycle_3holes, last_calculated_state_3holes, \
+                last_calculated_cycle_shakeup, last_calculated_state_shakeup = readStateList()
                 
+                # If the 3 hole and shake-up configurations are supposed to be calculated
+                if calculate_3holes and calculate_shakeup:
+                    # Check if all state discovery lists are complete
+                    # Also check if the last calculated cycles and states are the expected ones
+                    if complete_1hole and complete_2holes and complete_3holes and complete_shakeup and \
+                        last_calculated_cycle_1hole == 4 and last_calculated_cycle_2holes == 4 and last_calculated_cycle_3holes == 4 and last_calculated_cycle_shakeup == 4 \
+                        last_calculated_state_1hole[0] == calculated1holeStates[-1][0] and last_calculated_state_2holes[0] == calculated2holesStates[-1][0] \
+                        last_calculated_state_3holes[0] == calculated3holesStates[-1][0] and last_calculated_state_shakeup[0] == calculatedShakeupStates[-1][0]:
+                        print("\nVerifyed that the file with the list of calculated states is consistent.")
+                        print("Proceding with this list.")
+                    else:
+                        # Print some debug information if the flag values are not what expected
+                        # This is done because transition files were already found
+                        print("\nError while checking the file with calculated states.\n")
+                        print("Flag                          -> Value ; Expected:")
+                        print("Completed 1 hole              -> " + str(complete_1hole) + " ; True")
+                        print("Completed 2 holes             -> " + str(complete_2holes) + " ; True")
+                        print("Completed 3 holes             -> " + str(complete_3holes) + " ; True")
+                        print("Completed Shake-up            -> " + str(complete_shakeup) + " ; True")
+                        print("Last calculated cycle 1 hole  -> " + str(last_calculated_cycle_1hole) + "    ; 4")
+                        print("Last calculated cycle 2 holes -> " + str(last_calculated_cycle_2holes) + "    ; 4")
+                        print("Last calculated cycle 3 holes -> " + str(last_calculated_cycle_3holes) + "    ; 4")
+                        print("Last calculated cycle shake-up-> " + str(last_calculated_cycle_shakeup) + "    ; 4")
+                        print("Last calculated state 1 hole  -> " + ', '.join([str(qn) for qn in last_calculated_state_1hole[0]]) + " ; " + ', '.join([str(qn) for qn in calculated1holeStates[-1][0]]))
+                        print("Last calculated state 2 holes -> " + ', '.join([str(qn) for qn in last_calculated_state_2holes[0]]) + " ; " + ', '.join([str(qn) for qn in calculated2holesStates[-1][0]]))
+                        print("Last calculated state 3 holes -> " + ', '.join([str(qn) for qn in last_calculated_state_3holes[0]]) + " ; " + ', '.join([str(qn) for qn in calculated3holesStates[-1][0]]))
+                        print("Last calculated state shake-up-> " + ', '.join([str(qn) for qn in last_calculated_state_shakeup[0]]) + " ; " + ', '.join([str(qn) for qn in calculatedShakeupStates[-1][0]]))
+                        
+                        print("\nPicking up from the last calculated states...\n")
+                        
+                        # Return the flags for later flow control to decide which calculations to perform and where to start those calculations
+                        return complete_1hole, complete_2holes, complete_3holes, complete_shakeup, \
+                                last_calculated_cycle_1hole, last_calculated_cycle_2holes, last_calculated_cycle_3holes, last_calculated_cycle_shakeup, \
+                                last_calculated_state_1hole[0], last_calculated_state_2holes[0], last_calculated_state_3holes[0], last_calculated_state_shakeup[0]
+                # If the 3 hole configurations are supposed to be calculated
+                elif calculate_3holes:
+                    # Check if all state discovery lists are complete, except for the shake-up ones
+                    # Also check if the last calculated cycles and states are the expected ones
+                    if complete_1hole and complete_2holes and complete_3holes and \
+                        last_calculated_cycle_1hole == 4 and last_calculated_cycle_2holes == 4 and last_calculated_cycle_3holes == 4 \
+                        last_calculated_state_1hole[0] == calculated1holeStates[-1][0] and last_calculated_state_2holes[0] == calculated2holesStates[-1][0] \
+                        last_calculated_state_3holes[0] == calculated3holesStates[-1][0]:
+                        print("\nVerifyed that the file with the list of calculated states is consistent.")
+                        print("Proceding with this list.")
+                    else:
+                        # Print some debug information if the flag values are not what expected
+                        # This is done because transition files were already found
+                        print("\nError while checking the file with calculated states.\n")
+                        print("Flag                          -> Value ; Expected:")
+                        print("Completed 1 hole              -> " + str(complete_1hole) + " ; True")
+                        print("Completed 2 holes             -> " + str(complete_2holes) + " ; True")
+                        print("Completed 3 holes             -> " + str(complete_3holes) + " ; True")
+                        print("Completed Shake-up            ->  N/A  ; N/A")
+                        print("Last calculated cycle 1 hole  -> " + str(last_calculated_cycle_1hole) + "    ; 4")
+                        print("Last calculated cycle 2 holes -> " + str(last_calculated_cycle_2holes) + "    ; 4")
+                        print("Last calculated cycle 3 holes -> " + str(last_calculated_cycle_3holes) + "    ; 4")
+                        print("Last calculated cycle shake-up->  N/A  ; N/A")
+                        print("Last calculated state 1 hole  -> " + ', '.join([str(qn) for qn in last_calculated_state_1hole[0]]) + " ; " + ', '.join([str(qn) for qn in calculated1holeStates[-1][0]]))
+                        print("Last calculated state 2 holes -> " + ', '.join([str(qn) for qn in last_calculated_state_2holes[0]]) + " ; " + ', '.join([str(qn) for qn in calculated2holesStates[-1][0]]))
+                        print("Last calculated state 3 holes -> " + ', '.join([str(qn) for qn in last_calculated_state_3holes[0]]) + " ; " + ', '.join([str(qn) for qn in calculated3holesStates[-1][0]]))
+                        print("Last calculated state shake-up->  N/A  ; N/A")
+                        
+                        print("\nPicking up from the last calculated states...\n")
+                        
+                        # Return the flags for later flow control to decide which calculations to perform and where to start those calculations
+                        return complete_1hole, complete_2holes, complete_3holes, complete_shakeup, \
+                                last_calculated_cycle_1hole, last_calculated_cycle_2holes, last_calculated_cycle_3holes, last_calculated_cycle_shakeup, \
+                                last_calculated_state_1hole[0], last_calculated_state_2holes[0], last_calculated_state_3holes[0], last_calculated_state_shakeup[0]
+                # If the shake-up configurations are supposed to be calculated
+                elif calculate_shakeup:
+                    # Check if all state discovery lists are complete, except for the shake-up ones
+                    # Also check if the last calculated cycles and states are the expected ones
+                    if complete_1hole and complete_2holes and complete_shakeup and \
+                        last_calculated_cycle_1hole == 4 and last_calculated_cycle_2holes == 4 and last_calculated_cycle_shakeup == 4 \
+                        last_calculated_state_1hole[0] == calculated1holeStates[-1][0] and last_calculated_state_2holes[0] == calculated2holesStates[-1][0] \
+                        last_calculated_state_shakeup[0] == calculatedShakeupStates[-1][0]:
+                        print("\nVerifyed that the file with the list of calculated states is consistent.")
+                        print("Proceding with this list.")
+                    else:
+                        # Print some debug information if the flag values are not what expected
+                        # This is done because transition files were already found
+                        print("\nError while checking the file with calculated states.\n")
+                        print("Flag                          -> Value ; Expected:")
+                        print("Completed 1 hole              -> " + str(complete_1hole) + " ; True")
+                        print("Completed 2 holes             -> " + str(complete_2holes) + " ; True")
+                        print("Completed 3 holes             ->  N/A  ; N/A")
+                        print("Completed Shake-up            -> " + str(complete_shakeup) + " ; True")
+                        print("Last calculated cycle 1 hole  -> " + str(last_calculated_cycle_1hole) + "    ; 4")
+                        print("Last calculated cycle 2 holes -> " + str(last_calculated_cycle_2holes) + "    ; 4")
+                        print("Last calculated cycle 3 holes ->  N/A  ; N/A")
+                        print("Last calculated cycle shake-up-> " + str(last_calculated_cycle_shakeup) + "    ; 4")
+                        print("Last calculated state 1 hole  -> " + ', '.join([str(qn) for qn in last_calculated_state_1hole[0]]) + " ; " + ', '.join([str(qn) for qn in calculated1holeStates[-1][0]]))
+                        print("Last calculated state 2 holes -> " + ', '.join([str(qn) for qn in last_calculated_state_2holes[0]]) + " ; " + ', '.join([str(qn) for qn in calculated2holesStates[-1][0]]))
+                        print("Last calculated state 3 holes ->   N/A  ; N/A")
+                        print("Last calculated state shake-up-> " + ', '.join([str(qn) for qn in last_calculated_state_shakeup[0]]) + " ; " + ', '.join([str(qn) for qn in calculatedShakeupStates[-1][0]]))
+                        
+                        print("\nPicking up from the last calculated states...\n")
+                        
+                        # Return the flags for later flow control to decide which calculations to perform and where to start those calculations
+                        return complete_1hole, complete_2holes, complete_3holes, complete_shakeup, \
+                                last_calculated_cycle_1hole, last_calculated_cycle_2holes, last_calculated_cycle_3holes, last_calculated_cycle_shakeup, \
+                                last_calculated_state_1hole[0], last_calculated_state_2holes[0], last_calculated_state_3holes[0], last_calculated_state_shakeup[0]
             else:
+                # Print the file names that are missing
                 print("\nFile with the list of discovered states is missing: ")
                 print("1 hole states -> " + file_cycle_log_1hole)
                 print("2 holes states -> " + file_cycle_log_2holes)
+                
+                # Print the missing file names if the calculations where expected
+                if calculate_3holes:
+                    print("3 holes states -> " + file_cycle_log_3holes)
+                if calculate_shakeup:
+                    print("Shake-up states -> " + file_cycle_log_shakeup)
+                
                 print("\nReverting to full calculation...\n")
                 
+                # Return 1 as a flag to revert to a full calculation instead of a partial one as there are inconsistencies
                 return 1
             
+            # Check for consistency if the files with the sorted states exist
+            # Only the 1 hole and 2 hole are strictly necessary to continue with calculations
             if os.path.isfile(file_sorted_1hole) and os.path.isfile(file_sorted_2holes):
                 print("\nFound files with energy sorted calculated states.")
                 
-                complete_sorted_1hole, complete_sorted_2holes = readSortedStates()
+                # Check if the list of sorted states are complete by comparing the number of sorted states to the number of total states
+                complete_sorted_1hole, complete_sorted_2holes, complete_sorted_3holes, complete_sorted_shakeup = readSortedStates()
                 
+                # If we expect to calculate the 3 hole states
+                if calculate_3holes:
+                    # Check if the sorted 3 hole states were completed
+                    if not complete_sorted_3holes:
+                        print("\nError while reading the sorted states files.")
+                        print("There was a missmatch between the length of sorted states and calculated states for 3 hole configurations.")
+                        print("Continuing with the full list of states and resorting them.")
+                        
+                        # Return 2 as a flag to continue the calculation with the list of total states and resort them
+                        return 2
+                
+                # Check if the list of sorted states are complete for 1 hole and 2 hole states that are necessary for the main calculation
                 if complete_sorted_1hole and complete_sorted_2holes:
                     print("\nEnergy sorted calculated states files are complete.")
                     print("Proceding while using this state list.")
                     
-                    last_rad_calculated, last_aug_calculated, last_sat_calculated = readTransitions()
+                    # Read the transition list for all possible transitons, independently if they are supposed to be calculated or not
+                    last_rad_calculated, last_aug_calculated, last_sat_calculated, last_shakeup_calculated = readTransitions()
                     
+                    # Radiative, Auger and Shake-off
+                    
+                    # Check if the last calculated radiative transition is the expected one
                     if type(last_rad_calculated) != type(True):
                         print("\nRead last calculated radiative transition.")
                         
@@ -604,6 +935,8 @@ def checkPartial():
                     else:
                         print("\nError reading last calculated radiative transition.")
                         print("Redoing this calculation from the start.")
+                    
+                    # Check if the last calculated auger transition is the expected one
                     if type(last_aug_calculated) != type(True):
                         print("\nRead last calculated auger transition.")
                         
@@ -612,6 +945,8 @@ def checkPartial():
                     else:
                         print("\nError reading last calculated auger transition.")
                         print("Redoing this calculation from the start.")
+                    
+                    # Check if the last calculated shake-off transition is the expected one
                     if type(last_sat_calculated) != type(True):
                         print("\nRead last calculated satellite transition.")
                         
@@ -621,85 +956,363 @@ def checkPartial():
                         print("\nError reading last calculated satellite transition.")
                         print("Redoing this calculation from the start.")
                     
-                    return last_rad_calculated, last_aug_calculated, last_sat_calculated
+                    
+                    # Shake-up
+                    
+                    # If the shake-up transitions are supposed to be calculated
+                    if calculate_shakeup:
+                        # Check if the list of sorted states are complete for shake-up states
+                        if complete_sorted_shakeup:
+                            # Check if the last calcualted shake-up transition is the expected one
+                            if type(last_shakeup_calculated) != type(True):
+                                print("\nRead last calculated shake-up transition.")
+                                
+                                if last_shakeup_calculated[0] == calculatedShakeupStates[-1][0] and last_shakeup_calculated[1] == calculatedShakeupStates[-1][0]:
+                                    last_shakeup_calculated = True
+                            else:
+                                print("\nError reading last calculated shake-up transition.")
+                                print("Redoing this calculation from the start.")
+                        else:
+                            print("\nError while reading the sorted states files.")
+                            print("There was a missmatch between the length of sorted states and calculated states for shake-up configurations.")
+                            print("Continuing with the full list of states and resorting them.")
+                            
+                            # Return 2 as a flag to continue the calculation with the list of total states and resort them
+                            return 2
+                    
+                    # Return the last calculated transitions to know where to start calculating from
+                    return last_rad_calculated, last_aug_calculated, last_sat_calculated, last_shakeup_calculated
                 else:
                     print("\nError while reading the sorted states files.")
                     print("There was a missmatch between the length of sorted states and calculated states.")
                     print("Continuing with the full list of states and resorting them.")
                     
+                    # Return 2 as a flag to continue the calculation with the list of total states and resort them
                     return 2
             
+            # Return 0 as a flag to know everything went as expected
             return 0
         
+        
+        # If there is no transition files, check if the files with the sorted states exist
+        # Only the 1 hole and 2 hole are strictly necessary to continue with calculations
         if os.path.isfile(file_sorted_1hole) and os.path.isfile(file_sorted_2holes):
             print("\nFound files with the sorted list of calculated states.")
             
+            # Check for consistency if the files with the states logs exist
+            # Only the 1 hole and 2 hole are strictly necessary to continue with calculations
             if os.path.isfile(file_cycle_log_1hole) and os.path.isfile(file_cycle_log_2holes):
                 print("Found file with the list of discovered states.")
-                complete_1hole, complete_2holes, last_calculated_cycle_1hole, last_calculated_state_1hole, last_calculated_cycle_2holes, last_calculated_state_2holes = readStateList()
                 
-                if complete_1hole and complete_2holes and last_calculated_cycle_1hole == 4 and last_calculated_cycle_2holes == 4 and last_calculated_state_1hole[0] == calculated1holeStates[-1][0] and last_calculated_state_2holes[0] == calculated2holesStates[-1][0]:
+                # Read the state list and get flags to perform some more flow control
+                complete_1hole, complete_2holes, complete_3holes, complete_shakeup, \
+                last_calculated_cycle_1hole, last_calculated_state_1hole, \
+                last_calculated_cycle_2holes, last_calculated_state_2holes, \
+                last_calculated_cycle_3holes, last_calculated_state_3holes, \
+                last_calculated_cycle_shakeup, last_calculated_state_shakeup = readStateList()
+                
+                # If the 3 hole and shake-up configurations are supposed to be calculated
+                if calculate_3holes and calculate_shakeup:
+                    # Check if all state discovery lists are complete
+                    # Also check if the last calculated cycles and states are the expected ones
+                    if complete_1hole and complete_2holes and complete_3holes and complete_shakeup and \
+                        last_calculated_cycle_1hole == 4 and last_calculated_cycle_2holes == 4 and last_calculated_cycle_3holes == 4 and last_calculated_cycle_shakeup == 4 \
+                        last_calculated_state_1hole[0] == calculated1holeStates[-1][0] and last_calculated_state_2holes[0] == calculated2holesStates[-1][0] \
+                        last_calculated_state_3holes[0] == calculated3holesStates[-1][0] and last_calculated_state_shakeup[0] == calculatedShakeupStates[-1][0]:
+                        print("\nVerifyed that the file with the list of calculated states is consistent.")
+                        print("Proceding with this list.")
+                    else:
+                        # Print some debug information if the flag values are not what expected
+                        # This is done because transition files were already found
+                        print("\nError while checking the file with calculated states.\n")
+                        print("Flag                          -> Value ; Expected:")
+                        print("Completed 1 hole              -> " + str(complete_1hole) + " ; True")
+                        print("Completed 2 holes             -> " + str(complete_2holes) + " ; True")
+                        print("Completed 3 holes             -> " + str(complete_3holes) + " ; True")
+                        print("Completed Shake-up            -> " + str(complete_shakeup) + " ; True")
+                        print("Last calculated cycle 1 hole  -> " + str(last_calculated_cycle_1hole) + "    ; 4")
+                        print("Last calculated cycle 2 holes -> " + str(last_calculated_cycle_2holes) + "    ; 4")
+                        print("Last calculated cycle 3 holes -> " + str(last_calculated_cycle_3holes) + "    ; 4")
+                        print("Last calculated cycle shake-up-> " + str(last_calculated_cycle_shakeup) + "    ; 4")
+                        print("Last calculated state 1 hole  -> " + ', '.join([str(qn) for qn in last_calculated_state_1hole[0]]) + " ; " + ', '.join([str(qn) for qn in calculated1holeStates[-1][0]]))
+                        print("Last calculated state 2 holes -> " + ', '.join([str(qn) for qn in last_calculated_state_2holes[0]]) + " ; " + ', '.join([str(qn) for qn in calculated2holesStates[-1][0]]))
+                        print("Last calculated state 3 holes -> " + ', '.join([str(qn) for qn in last_calculated_state_3holes[0]]) + " ; " + ', '.join([str(qn) for qn in calculated3holesStates[-1][0]]))
+                        print("Last calculated state shake-up-> " + ', '.join([str(qn) for qn in last_calculated_state_shakeup[0]]) + " ; " + ', '.join([str(qn) for qn in calculatedShakeupStates[-1][0]]))
+                        
+                        print("\nPicking up from the last calculated states...\n")
+                        
+                        # Return the flags for later flow control to decide which calculations to perform and where to start those calculations
+                        return complete_1hole, complete_2holes, complete_3holes, complete_shakeup, \
+                                last_calculated_cycle_1hole, last_calculated_cycle_2holes, last_calculated_cycle_3holes, last_calculated_cycle_shakeup, \
+                                last_calculated_state_1hole[0], last_calculated_state_2holes[0], last_calculated_state_3holes[0], last_calculated_state_shakeup[0]
+                # If the 3 hole configurations are supposed to be calculated
+                elif calculate_3holes:
+                    # Check if all state discovery lists are complete, except for the shake-up ones
+                    # Also check if the last calculated cycles and states are the expected ones
+                    if complete_1hole and complete_2holes and complete_3holes and \
+                        last_calculated_cycle_1hole == 4 and last_calculated_cycle_2holes == 4 and last_calculated_cycle_3holes == 4 \
+                        last_calculated_state_1hole[0] == calculated1holeStates[-1][0] and last_calculated_state_2holes[0] == calculated2holesStates[-1][0] \
+                        last_calculated_state_3holes[0] == calculated3holesStates[-1][0]:
+                        print("\nVerifyed that the file with the list of calculated states is consistent.")
+                        print("Proceding with this list.")
+                    else:
+                        # Print some debug information if the flag values are not what expected
+                        # This is done because transition files were already found
+                        print("\nError while checking the file with calculated states.\n")
+                        print("Flag                          -> Value ; Expected:")
+                        print("Completed 1 hole              -> " + str(complete_1hole) + " ; True")
+                        print("Completed 2 holes             -> " + str(complete_2holes) + " ; True")
+                        print("Completed 3 holes             -> " + str(complete_3holes) + " ; True")
+                        print("Completed Shake-up            ->  N/A  ; N/A")
+                        print("Last calculated cycle 1 hole  -> " + str(last_calculated_cycle_1hole) + "    ; 4")
+                        print("Last calculated cycle 2 holes -> " + str(last_calculated_cycle_2holes) + "    ; 4")
+                        print("Last calculated cycle 3 holes -> " + str(last_calculated_cycle_3holes) + "    ; 4")
+                        print("Last calculated cycle shake-up->  N/A  ; N/A")
+                        print("Last calculated state 1 hole  -> " + ', '.join([str(qn) for qn in last_calculated_state_1hole[0]]) + " ; " + ', '.join([str(qn) for qn in calculated1holeStates[-1][0]]))
+                        print("Last calculated state 2 holes -> " + ', '.join([str(qn) for qn in last_calculated_state_2holes[0]]) + " ; " + ', '.join([str(qn) for qn in calculated2holesStates[-1][0]]))
+                        print("Last calculated state 3 holes -> " + ', '.join([str(qn) for qn in last_calculated_state_3holes[0]]) + " ; " + ', '.join([str(qn) for qn in calculated3holesStates[-1][0]]))
+                        print("Last calculated state shake-up->  N/A  ; N/A")
+                        
+                        print("\nPicking up from the last calculated states...\n")
+                        
+                        # Return the flags for later flow control to decide which calculations to perform and where to start those calculations
+                        return complete_1hole, complete_2holes, complete_3holes, complete_shakeup, \
+                                last_calculated_cycle_1hole, last_calculated_cycle_2holes, last_calculated_cycle_3holes, last_calculated_cycle_shakeup, \
+                                last_calculated_state_1hole[0], last_calculated_state_2holes[0], last_calculated_state_3holes[0], last_calculated_state_shakeup[0]
+                # If the shake-up configurations are supposed to be calculated
+                elif calculate_shakeup:
+                    # Check if all state discovery lists are complete, except for the shake-up ones
+                    # Also check if the last calculated cycles and states are the expected ones
+                    if complete_1hole and complete_2holes and complete_shakeup and \
+                        last_calculated_cycle_1hole == 4 and last_calculated_cycle_2holes == 4 and last_calculated_cycle_shakeup == 4 \
+                        last_calculated_state_1hole[0] == calculated1holeStates[-1][0] and last_calculated_state_2holes[0] == calculated2holesStates[-1][0] \
+                        last_calculated_state_shakeup[0] == calculatedShakeupStates[-1][0]:
+                        print("\nVerifyed that the file with the list of calculated states is consistent.")
+                        print("Proceding with this list.")
+                    else:
+                        # Print some debug information if the flag values are not what expected
+                        # This is done because transition files were already found
+                        print("\nError while checking the file with calculated states.\n")
+                        print("Flag                          -> Value ; Expected:")
+                        print("Completed 1 hole              -> " + str(complete_1hole) + " ; True")
+                        print("Completed 2 holes             -> " + str(complete_2holes) + " ; True")
+                        print("Completed 3 holes             ->  N/A  ; N/A")
+                        print("Completed Shake-up            -> " + str(complete_shakeup) + " ; True")
+                        print("Last calculated cycle 1 hole  -> " + str(last_calculated_cycle_1hole) + "    ; 4")
+                        print("Last calculated cycle 2 holes -> " + str(last_calculated_cycle_2holes) + "    ; 4")
+                        print("Last calculated cycle 3 holes ->  N/A  ; N/A")
+                        print("Last calculated cycle shake-up-> " + str(last_calculated_cycle_shakeup) + "    ; 4")
+                        print("Last calculated state 1 hole  -> " + ', '.join([str(qn) for qn in last_calculated_state_1hole[0]]) + " ; " + ', '.join([str(qn) for qn in calculated1holeStates[-1][0]]))
+                        print("Last calculated state 2 holes -> " + ', '.join([str(qn) for qn in last_calculated_state_2holes[0]]) + " ; " + ', '.join([str(qn) for qn in calculated2holesStates[-1][0]]))
+                        print("Last calculated state 3 holes ->   N/A  ; N/A")
+                        print("Last calculated state shake-up-> " + ', '.join([str(qn) for qn in last_calculated_state_shakeup[0]]) + " ; " + ', '.join([str(qn) for qn in calculatedShakeupStates[-1][0]]))
+                        
+                        print("\nPicking up from the last calculated states...\n")
+                        
+                        # Return the flags for later flow control to decide which calculations to perform and where to start those calculations
+                        return complete_1hole, complete_2holes, complete_3holes, complete_shakeup, \
+                                last_calculated_cycle_1hole, last_calculated_cycle_2holes, last_calculated_cycle_3holes, last_calculated_cycle_shakeup, \
+                                last_calculated_state_1hole[0], last_calculated_state_2holes[0], last_calculated_state_3holes[0], last_calculated_state_shakeup[0]
+            else:
+                # Print the file names that are missing
+                print("\nFile with the list of discovered states is missing: ")
+                print("1 hole states -> " + file_cycle_log_1hole)
+                print("2 holes states -> " + file_cycle_log_2holes)
+                
+                # Print the missing file names if the calculations where expected
+                if calculate_3holes:
+                    print("3 holes states -> " + file_cycle_log_3holes)
+                if calculate_shakeup:
+                    print("Shake-up states -> " + file_cycle_log_shakeup)
+                
+                print("\nReverting to full calculation...\n")
+                
+                # Return 1 as a flag to revert to a full calculation instead of a partial one as there are inconsistencies
+                return 1
+            
+            # Check if the list of sorted states are complete by comparing the number of sorted states to the number of total states
+            complete_sorted_1hole, complete_sorted_2holes, complete_sorted_3holes, complete_sorted_shakeup = readSortedStates()
+            
+            # If the 3 hole and shake-up configurations are supposed to be calculated
+            if calculate_3holes and calculate_shakeup:
+                # Check if the list of sorted states are complete for 1 hole, 2 hole, 3 hole and shake-up states
+                if complete_sorted_1hole and complete_sorted_2holes and complete_sorted_3holes and complete_sorted_shakeup:
+                    print("\nEnergy sorted calculated states files are complete.")
+                    print("Proceding while using this state list.")
+                    
+                    # Return 3 as a flag that only the complete sorted states lists where found but that was what we expected
+                    return 3
+                else:
+                    print("\nError while reading the sorted states files.")
+                    print("There was a missmatch between the length of sorted states and calculated states.")
+                    print("Continuing with the full list of states and resorting them.")
+                    
+                    # Return 2 as a flag to continue the calculation with the list of total states and resort them
+                    return 2
+            # If the 3 hole configurations are supposed to be calculated
+            elif calculate_3holes:
+                # Check if the list of sorted states are complete for 1 hole, 2 hole and 3 hole states
+                if complete_sorted_1hole and complete_sorted_2holes and complete_sorted_3holes:
+                    print("\nEnergy sorted calculated states files are complete.")
+                    print("Proceding while using this state list.")
+                    
+                    # Return 3 as a flag that only the complete sorted states lists where found but that was what we expected
+                    return 3
+                else:
+                    print("\nError while reading the sorted states files.")
+                    print("There was a missmatch between the length of sorted states and calculated states.")
+                    print("Continuing with the full list of states and resorting them.")
+                    
+                    # Return 2 as a flag to continue the calculation with the list of total states and resort them
+                    return 2
+            # If the shake-up configurations are supposed to be calculated
+            elif calculate_shakeup:
+                # Check if the list of sorted states are complete for 1 hole, 2 hole and shake-up states
+                if complete_sorted_1hole and complete_sorted_2holes and complete_sorted_shakeup:
+                    print("\nEnergy sorted calculated states files are complete.")
+                    print("Proceding while using this state list.")
+                    
+                    # Return 3 as a flag that only the complete sorted states lists where found but that was what we expected
+                    return 3
+                else:
+                    print("\nError while reading the sorted states files.")
+                    print("There was a missmatch between the length of sorted states and calculated states.")
+                    print("Continuing with the full list of states and resorting them.")
+                    
+                    # Return 2 as a flag to continue the calculation with the list of total states and resort them
+                    return 2
+            # If only 1 hole and 2 hole configurations are supposed to be calculated
+            else:
+                # Check if the list of sorted states are complete for 1 hole and 2 hole states
+                if complete_sorted_1hole and complete_sorted_2holes:
+                    print("\nEnergy sorted calculated states files are complete.")
+                    print("Proceding while using this state list.")
+                    
+                    # Return 3 as a flag that only the complete sorted states lists where found but that was what we expected
+                    return 3
+                else:
+                    print("\nError while reading the sorted states files.")
+                    print("There was a missmatch between the length of sorted states and calculated states.")
+                    print("Continuing with the full list of states and resorting them.")
+                    
+                    # Return 2 as a flag to continue the calculation with the list of total states and resort them
+                    return 2
+            
+        
+        # Check for consistency if the files with the states logs exist
+        # Only the 1 hole and 2 hole are strictly necessary to continue with calculations
+        if os.path.isfile(file_cycle_log_1hole) and os.path.isfile(file_cycle_log_2holes):
+            print("\nFound file with the list of discovered states.")
+            
+            # Read the state list and get flags to perform some more flow control
+            complete_1hole, complete_2holes, complete_3holes, complete_shakeup, \
+            last_calculated_cycle_1hole, last_calculated_state_1hole, \
+            last_calculated_cycle_2holes, last_calculated_state_2holes, \
+            last_calculated_cycle_3holes, last_calculated_state_3holes, \
+            last_calculated_cycle_shakeup, last_calculated_state_shakeup = readStateList()
+            
+            # If the 3 hole and shake-up configurations are supposed to be calculated
+            if calculate_3holes and calculate_shakeup:
+                # Check if all state discovery lists are complete
+                # Also check if the last calculated cycles and states are the expected ones
+                if complete_1hole and complete_2holes and complete_3holes and complete_shakeup and \
+                    last_calculated_cycle_1hole == 4 and last_calculated_cycle_2holes == 4 and last_calculated_cycle_3holes == 4 and last_calculated_cycle_shakeup == 4 \
+                    last_calculated_state_1hole[0] == calculated1holeStates[-1][0] and last_calculated_state_2holes[0] == calculated2holesStates[-1][0] \
+                    last_calculated_state_3holes[0] == calculated3holesStates[-1][0] and last_calculated_state_shakeup[0] == calculatedShakeupStates[-1][0]:
                     print("\nVerifyed that the file with the list of calculated states is consistent.")
                     print("Proceding with this list.")
                 else:
+                    # Print some debug information if the flag values are not what expected
+                    # This is done because transition files were already found
                     print("\nError while checking the file with calculated states.\n")
                     print("Flag                          -> Value ; Expected:")
                     print("Completed 1 hole              -> " + str(complete_1hole) + " ; True")
                     print("Completed 2 holes             -> " + str(complete_2holes) + " ; True")
+                    print("Completed 3 holes             -> " + str(complete_3holes) + " ; True")
+                    print("Completed Shake-up            -> " + str(complete_shakeup) + " ; True")
                     print("Last calculated cycle 1 hole  -> " + str(last_calculated_cycle_1hole) + "    ; 4")
                     print("Last calculated cycle 2 holes -> " + str(last_calculated_cycle_2holes) + "    ; 4")
-                    print("Last calculated state 1 hole  -> " + str(last_calculated_state_1hole[0]) + " ; " + str(calculated1holeStates[-1][0]))
-                    print("Last calculated state 2 holes -> " + str(last_calculated_state_2holes[0]) + " ; " + str(calculated2holesStates[-1][0]))
+                    print("Last calculated cycle 3 holes -> " + str(last_calculated_cycle_3holes) + "    ; 4")
+                    print("Last calculated cycle shake-up-> " + str(last_calculated_cycle_shakeup) + "    ; 4")
+                    print("Last calculated state 1 hole  -> " + ', '.join([str(qn) for qn in last_calculated_state_1hole[0]]) + " ; " + ', '.join([str(qn) for qn in calculated1holeStates[-1][0]]))
+                    print("Last calculated state 2 holes -> " + ', '.join([str(qn) for qn in last_calculated_state_2holes[0]]) + " ; " + ', '.join([str(qn) for qn in calculated2holesStates[-1][0]]))
+                    print("Last calculated state 3 holes -> " + ', '.join([str(qn) for qn in last_calculated_state_3holes[0]]) + " ; " + ', '.join([str(qn) for qn in calculated3holesStates[-1][0]]))
+                    print("Last calculated state shake-up-> " + ', '.join([str(qn) for qn in last_calculated_state_shakeup[0]]) + " ; " + ', '.join([str(qn) for qn in calculatedShakeupStates[-1][0]]))
                     
                     print("\nPicking up from the last calculated states...\n")
                     
-                    return complete_1hole, complete_2holes, last_calculated_cycle_1hole, last_calculated_cycle_2holes, last_calculated_state_1hole[0], last_calculated_state_2holes[0]
-                
-            else:
-                print("\nFile with the list of discovered states is missing: ")
-                print("1 hole states -> " + file_cycle_log_1hole)
-                print("2 holes states -> " + file_cycle_log_2holes)
-                print("\nReverting to full calculation...\n")
-                
-                return 1
-            
-            complete_sorted_1hole, complete_sorted_2holes = readSortedStates()
-            
-            if complete_sorted_1hole and complete_sorted_2holes:
-                print("\nEnergy sorted calculated states files are complete.")
-                print("Proceding while using this state list.")
-                
-                return 3
-            else:
-                print("\nError while reading the sorted states files.")
-                print("There was a missmatch between the length of sorted states and calculated states.")
-                print("Continuing with the full list of states and resorting them.")
-                
-                return 2
-            
-        
-        if os.path.isfile(file_cycle_log_1hole) and os.path.isfile(file_cycle_log_2holes):
-            print("\nFound file with the list of discovered states.")
-            complete_1hole, complete_2holes, last_calculated_cycle_1hole, last_calculated_state_1hole, last_calculated_cycle_2holes, last_calculated_state_2holes = readStateList()
-            
-            if complete_1hole and complete_2holes and last_calculated_cycle_1hole == 4 and last_calculated_cycle_2holes == 4 and last_calculated_state_1hole[0] == calculated1holeStates[-1][0] and last_calculated_state_2holes[0] == calculated2holesStates[-1][0]:
-                print("\nVerifyed that the file with the list of calculated states is consistent.")
-                print("Proceding with this list.")
-                
-                return 0
-            else:
-                print("\nError while checking the file with calculated states.\n")
-                print("Flag                          -> Value ; Expected:")
-                print("Completed 1 hole              -> " + str(complete_1hole) + " ; True")
-                print("Completed 2 holes             -> " + str(complete_2holes) + " ; True")
-                print("Last calculated cycle 1 hole  -> " + str(last_calculated_cycle_1hole) + "    ; 4")
-                print("Last calculated cycle 2 holes -> " + str(last_calculated_cycle_2holes) + "    ; 4")
-                print("Last calculated state 1 hole  -> " + str(last_calculated_state_1hole[0]) + " ; " + calculated1holeStates[-1][0])
-                print("Last calculated state 2 holes -> " + str(last_calculated_state_2holes[0]) + " ; " + calculated2holesStates[-1][0])
-                
-                print("\nPicking up from the last calculated states...\n")
-                
-                return complete_1hole, complete_2holes, last_calculated_cycle_1hole, last_calculated_cycle_2holes, last_calculated_state_1hole[0], last_calculated_state_2holes[0]
+                    # Return the flags for later flow control to decide which calculations to perform and where to start those calculations
+                    return complete_1hole, complete_2holes, complete_3holes, complete_shakeup, \
+                            last_calculated_cycle_1hole, last_calculated_cycle_2holes, last_calculated_cycle_3holes, last_calculated_cycle_shakeup, \
+                            last_calculated_state_1hole[0], last_calculated_state_2holes[0], last_calculated_state_3holes[0], last_calculated_state_shakeup[0]
+            # If the 3 hole configurations are supposed to be calculated
+            elif calculate_3holes:
+                # Check if all state discovery lists are complete, except for the shake-up ones
+                # Also check if the last calculated cycles and states are the expected ones
+                if complete_1hole and complete_2holes and complete_3holes and \
+                    last_calculated_cycle_1hole == 4 and last_calculated_cycle_2holes == 4 and last_calculated_cycle_3holes == 4 \
+                    last_calculated_state_1hole[0] == calculated1holeStates[-1][0] and last_calculated_state_2holes[0] == calculated2holesStates[-1][0] \
+                    last_calculated_state_3holes[0] == calculated3holesStates[-1][0]:
+                    print("\nVerifyed that the file with the list of calculated states is consistent.")
+                    print("Proceding with this list.")
+                else:
+                    # Print some debug information if the flag values are not what expected
+                    # This is done because transition files were already found
+                    print("\nError while checking the file with calculated states.\n")
+                    print("Flag                          -> Value ; Expected:")
+                    print("Completed 1 hole              -> " + str(complete_1hole) + " ; True")
+                    print("Completed 2 holes             -> " + str(complete_2holes) + " ; True")
+                    print("Completed 3 holes             -> " + str(complete_3holes) + " ; True")
+                    print("Completed Shake-up            ->  N/A  ; N/A")
+                    print("Last calculated cycle 1 hole  -> " + str(last_calculated_cycle_1hole) + "    ; 4")
+                    print("Last calculated cycle 2 holes -> " + str(last_calculated_cycle_2holes) + "    ; 4")
+                    print("Last calculated cycle 3 holes -> " + str(last_calculated_cycle_3holes) + "    ; 4")
+                    print("Last calculated cycle shake-up->  N/A  ; N/A")
+                    print("Last calculated state 1 hole  -> " + ', '.join([str(qn) for qn in last_calculated_state_1hole[0]]) + " ; " + ', '.join([str(qn) for qn in calculated1holeStates[-1][0]]))
+                    print("Last calculated state 2 holes -> " + ', '.join([str(qn) for qn in last_calculated_state_2holes[0]]) + " ; " + ', '.join([str(qn) for qn in calculated2holesStates[-1][0]]))
+                    print("Last calculated state 3 holes -> " + ', '.join([str(qn) for qn in last_calculated_state_3holes[0]]) + " ; " + ', '.join([str(qn) for qn in calculated3holesStates[-1][0]]))
+                    print("Last calculated state shake-up->  N/A  ; N/A")
+                    
+                    print("\nPicking up from the last calculated states...\n")
+                    
+                    # Return the flags for later flow control to decide which calculations to perform and where to start those calculations
+                    return complete_1hole, complete_2holes, complete_3holes, complete_shakeup, \
+                            last_calculated_cycle_1hole, last_calculated_cycle_2holes, last_calculated_cycle_3holes, last_calculated_cycle_shakeup, \
+                            last_calculated_state_1hole[0], last_calculated_state_2holes[0], last_calculated_state_3holes[0], last_calculated_state_shakeup[0]
+            # If the shake-up configurations are supposed to be calculated
+            elif calculate_shakeup:
+                # Check if all state discovery lists are complete, except for the shake-up ones
+                # Also check if the last calculated cycles and states are the expected ones
+                if complete_1hole and complete_2holes and complete_shakeup and \
+                    last_calculated_cycle_1hole == 4 and last_calculated_cycle_2holes == 4 and last_calculated_cycle_shakeup == 4 \
+                    last_calculated_state_1hole[0] == calculated1holeStates[-1][0] and last_calculated_state_2holes[0] == calculated2holesStates[-1][0] \
+                    last_calculated_state_shakeup[0] == calculatedShakeupStates[-1][0]:
+                    print("\nVerifyed that the file with the list of calculated states is consistent.")
+                    print("Proceding with this list.")
+                else:
+                    # Print some debug information if the flag values are not what expected
+                    # This is done because transition files were already found
+                    print("\nError while checking the file with calculated states.\n")
+                    print("Flag                          -> Value ; Expected:")
+                    print("Completed 1 hole              -> " + str(complete_1hole) + " ; True")
+                    print("Completed 2 holes             -> " + str(complete_2holes) + " ; True")
+                    print("Completed 3 holes             ->  N/A  ; N/A")
+                    print("Completed Shake-up            -> " + str(complete_shakeup) + " ; True")
+                    print("Last calculated cycle 1 hole  -> " + str(last_calculated_cycle_1hole) + "    ; 4")
+                    print("Last calculated cycle 2 holes -> " + str(last_calculated_cycle_2holes) + "    ; 4")
+                    print("Last calculated cycle 3 holes ->  N/A  ; N/A")
+                    print("Last calculated cycle shake-up-> " + str(last_calculated_cycle_shakeup) + "    ; 4")
+                    print("Last calculated state 1 hole  -> " + ', '.join([str(qn) for qn in last_calculated_state_1hole[0]]) + " ; " + ', '.join([str(qn) for qn in calculated1holeStates[-1][0]]))
+                    print("Last calculated state 2 holes -> " + ', '.join([str(qn) for qn in last_calculated_state_2holes[0]]) + " ; " + ', '.join([str(qn) for qn in calculated2holesStates[-1][0]]))
+                    print("Last calculated state 3 holes ->   N/A  ; N/A")
+                    print("Last calculated state shake-up-> " + ', '.join([str(qn) for qn in last_calculated_state_shakeup[0]]) + " ; " + ', '.join([str(qn) for qn in calculatedShakeupStates[-1][0]]))
+                    
+                    print("\nPicking up from the last calculated states...\n")
+                    
+                    # Return the flags for later flow control to decide which calculations to perform and where to start those calculations
+                    return complete_1hole, complete_2holes, complete_3holes, complete_shakeup, \
+                            last_calculated_cycle_1hole, last_calculated_cycle_2holes, last_calculated_cycle_3holes, last_calculated_cycle_shakeup, \
+                            last_calculated_state_1hole[0], last_calculated_state_2holes[0], last_calculated_state_3holes[0], last_calculated_state_shakeup[0]
         else:
             print("\nFiles with the previously calculated states directories could not be found.")
             print("Please do a full calculation first.")
@@ -1052,6 +1665,62 @@ def writeResults2holes(update=False):
                 else:
                     stateResults_2holes.write("All 2 Hole states have converged\n")
                     stateResults.write("All 2 Hole states have converged\n")
+
+
+def writeResults3holes(update=False):
+    if not update:
+        with open(file_cycle_log_3holes, "a") as log_3holes:
+            log_3holes.write("CalculationFinalized\n")
+    
+    with open(file_results, "a") as resultDump:
+        with open(file_final_results_3holes, "a") as stateResults_3holes:
+            with open(file_final_results, "a") as stateResults:
+                if not update:
+                    resultDump.write("Fourth Cycle 3 Hole states\nShell, Shell index, 2J, Eigv, Higher Configuration, Percentage, Overlap, Accuracy, Energy Difference, Energy Welton\n")
+                    stateResults_3holes.write("Calculated 3 Hole states\nShell, Shell index, 2J, Eigv, Higher Configuration, Percentage, Overlap, Accuracy, Energy Difference, Energy Welton\n")
+                    stateResults.write("Calculated 3 Hole states\nShell, Shell index, 2J, Eigv, Higher Configuration, Percentage, Overlap, Accuracy, Energy Difference, Energy Welton\n")
+                    for state in calculated3holesStates:
+                        resultDump.write(shell_array_3holes[state[0][0]] + ", " + str(state[0][0]) + ", " + str(state[0][1]) + ", " + str(state[0][2]) + ", " + state[1][0] + ", " + str(state[1][1]) + ", " + str(state[1][2]) + ", " + str(state[1][3]) + ", " + str(state[1][4]) + ", " + str(state[1][5]) + "\n")
+                        stateResults_3holes.write(shell_array_3holes[state[0][0]] + ", " + str(state[0][0]) + ", " + str(state[0][1]) + ", " + str(state[0][2]) + ", " + state[1][0] + ", " + str(state[1][1]) + ", " + str(state[1][2]) + ", " + str(state[1][3]) + ", " + str(state[1][4]) + ", " + str(state[1][5]) + "\n")
+                        stateResults.write(shell_array_3holes[state[0][0]] + ", " + str(state[0][0]) + ", " + str(state[0][1]) + ", " + str(state[0][2]) + ", " + state[1][0] + ", " + str(state[1][1]) + ", " + str(state[1][2]) + ", " + str(state[1][3]) + ", " + str(state[1][4]) + ", " + str(state[1][5]) + "\n")
+                
+                if len(sat_auger_by_hand) > 0:
+                    stateResults_3holes.write("3 Hole by Hand\n")
+                    stateResults.write("3 Hole by Hand\n")
+                    for counter in sat_auger_by_hand:
+                        stateResults_3holes.write(shell_array_3holes[calculated3holesStates[counter][0][0]] + ", " + str(calculated3holesStates[counter][0][0]) + ", " + str(calculated3holesStates[counter][0][1]) + ", " + str(calculated3holesStates[counter][0][2]) + ", " + calculated3holesStates[counter][1][0] + ", " + str(calculated3holesStates[counter][1][1]) + ", " + str(calculated3holesStates[counter][1][2]) + ", " + str(calculated3holesStates[counter][1][3]) + ", " + str(calculated3holesStates[counter][1][4]) + ", " + str(calculated3holesStates[counter][1][5]) + "\n")
+                        stateResults.write(shell_array_3holes[calculated3holesStates[counter][0][0]] + ", " + str(calculated3holesStates[counter][0][0]) + ", " + str(calculated3holesStates[counter][0][1]) + ", " + str(calculated3holesStates[counter][0][2]) + ", " + calculated3holesStates[counter][1][0] + ", " + str(calculated3holesStates[counter][1][1]) + ", " + str(calculated3holesStates[counter][1][2]) + ", " + str(calculated3holesStates[counter][1][3]) + ", " + str(calculated3holesStates[counter][1][4]) + ", " + str(calculated3holesStates[counter][1][5]) + "\n")
+                else:
+                    stateResults_3holes.write("All 3 Hole states have converged\n")
+                    stateResults.write("All 3 Hole states have converged\n")
+
+
+def writeResultsShakeup(update=False):
+    if not update:
+        with open(file_cycle_log_shakeup, "a") as log_shakeup:
+            log_shakeup.write("CalculationFinalized\n")
+    
+    with open(file_results, "a") as resultDump:
+        with open(file_final_results_shakeup, "a") as stateResults_shakeup:
+            with open(file_final_results, "a") as stateResults:
+                if not update:
+                    resultDump.write("Fourth Cycle Shake-up states\nShell, Shell index, 2J, Eigv, Higher Configuration, Percentage, Overlap, Accuracy, Energy Difference, Energy Welton\n")
+                    stateResults_shakeup.write("Calculated Shake-up states\nShell, Shell index, 2J, Eigv, Higher Configuration, Percentage, Overlap, Accuracy, Energy Difference, Energy Welton\n")
+                    stateResults.write("Calculated Shake-up states\nShell, Shell index, 2J, Eigv, Higher Configuration, Percentage, Overlap, Accuracy, Energy Difference, Energy Welton\n")
+                    for state in calculatedShakeupStates:
+                        resultDump.write(shell_array_shakeup[state[0][0]] + ", " + str(state[0][0]) + ", " + str(state[0][1]) + ", " + str(state[0][2]) + ", " + state[1][0] + ", " + str(state[1][1]) + ", " + str(state[1][2]) + ", " + str(state[1][3]) + ", " + str(state[1][4]) + ", " + str(state[1][5]) + "\n")
+                        stateResults_shakeup.write(shell_array_shakeup[state[0][0]] + ", " + str(state[0][0]) + ", " + str(state[0][1]) + ", " + str(state[0][2]) + ", " + state[1][0] + ", " + str(state[1][1]) + ", " + str(state[1][2]) + ", " + str(state[1][3]) + ", " + str(state[1][4]) + ", " + str(state[1][5]) + "\n")
+                        stateResults.write(shell_array_shakeup[state[0][0]] + ", " + str(state[0][0]) + ", " + str(state[0][1]) + ", " + str(state[0][2]) + ", " + state[1][0] + ", " + str(state[1][1]) + ", " + str(state[1][2]) + ", " + str(state[1][3]) + ", " + str(state[1][4]) + ", " + str(state[1][5]) + "\n")
+                
+                if len(shakeup_by_hand) > 0:
+                    stateResults_shakeup.write("Shake-up by Hand\n")
+                    stateResults.write("Shake-up by Hand\n")
+                    for counter in shakeup_by_hand:
+                        stateResults_shakeup.write(shell_array_shakeup[calculatedShakeupStates[counter][0][0]] + ", " + str(calculatedShakeupStates[counter][0][0]) + ", " + str(calculatedShakeupStates[counter][0][1]) + ", " + str(calculatedShakeupStates[counter][0][2]) + ", " + calculatedShakeupStates[counter][1][0] + ", " + str(calculatedShakeupStates[counter][1][1]) + ", " + str(calculatedShakeupStates[counter][1][2]) + ", " + str(calculatedShakeupStates[counter][1][3]) + ", " + str(calculatedShakeupStates[counter][1][4]) + ", " + str(calculatedShakeupStates[counter][1][5]) + "\n")
+                        stateResults.write(shell_array_shakeup[calculatedShakeupStates[counter][0][0]] + ", " + str(calculatedShakeupStates[counter][0][0]) + ", " + str(calculatedShakeupStates[counter][0][1]) + ", " + str(calculatedShakeupStates[counter][0][2]) + ", " + calculatedShakeupStates[counter][1][0] + ", " + str(calculatedShakeupStates[counter][1][1]) + ", " + str(calculatedShakeupStates[counter][1][2]) + ", " + str(calculatedShakeupStates[counter][1][3]) + ", " + str(calculatedShakeupStates[counter][1][4]) + ", " + str(calculatedShakeupStates[counter][1][5]) + "\n")
+                else:
+                    stateResults_shakeup.write("All Shake-up states have converged\n")
+                    stateResults.write("All Shake-up states have converged\n")
 
 
 
@@ -1953,8 +2622,904 @@ def calculate2holesStates(starting_cycle = -1, starting_state = [(0, 0, 0)]):
     writeResults2holes()
     
 
+
+def calculate3holesStates(starting_cycle = -1, starting_state = [(0, 0, 0)]):
+    global calculated3holesStates, sat_auger_by_hand
+    
+    jj_vals = []
+    
+    parallel_3holes_paths = []
+    
+    # If no starting cycle has been specified
+    if starting_cycle == -1:
+        # -------------- DETERMINE 2J MAX VALUE -------------- #
+        
+        for i in range(len(shell_array_3holes)):
+            currDir = rootDir + "/" + directory_name + "/3holes/" + shell_array_3holes[i]
+            currFileName = shell_array_3holes[i]
+            
+            configureStateInputFile(f05Template_nuc, currDir, currFileName, configuration_3holes[i], "100" if int(nelectrons) - 2 % 2 == 0 else "101", "100", [], int(nelectrons) - 2)
+            
+            parallel_3holes_paths.append(currDir + "/" + exe_file)
+            
+        
+        # Execute parallel batch job
+        executeBatchStateCalculation(parallel_3holes_paths)
+        
+        
+        parallel_3holes_paths = []
+        
+        # -------------- DETERMINE EIGENVALUE MAX VALUE -------------- #
+        
+        for i in range(len(shell_array_3holes)):
+            currDir = rootDir + "/" + directory_name + "/3holes/" + shell_array_3holes[i]
+            currFileName = shell_array_3holes[i]
+            
+            maxJJi = 0
+            
+            with open(currDir + "/" + currFileName + ".f06", "r") as labelOutput:
+                for line in labelOutput.readlines():
+                    if "!!!!! For state # 1 and configuration   1 highest 2Jz possible value is" in line:
+                        maxJJi = int(line.split("!!!!! For state # 1 and configuration   1 highest 2Jz possible value is")[1].split()[0].strip())
+            
+            for jj in range(0 if maxJJi % 2 == 0 else 1, maxJJi + 1, 2):
+                jj_vals.append((i, jj))
+                
+                currDir = rootDir + "/" + directory_name + "/3holes/" + shell_array_3holes[i] + "/2jj_" + str(jj)
+                currFileName = shell_array_3holes[i] + "_" + str(jj)
+                
+                configureStateInputFile(f05Template_nuc, currDir, currFileName, configuration_3holes[i], jj, "100", [], int(nelectrons) - 2)
+            
+                parallel_3holes_paths.append(currDir + "/" + exe_file)
+        
+        # Execute parallel batch job
+        executeBatchStateCalculation(parallel_3holes_paths)
+        
+        
+        parallel_3holes_paths = []
+        
+        # -------------- FULL STATE CALCULATION -------------- #
+        
+        for i, jj in jj_vals:
+            currDir = rootDir + "/" + directory_name + "/3holes/" + shell_array_3holes[i] + "/2jj_" + str(jj)
+            currFileName = shell_array_3holes[i] + "_" + str(jj)
+            
+            maxEigvi = 0
+            
+            with open(currDir + "/" + currFileName + ".f06", "r") as jjiOutput:
+                for line in jjiOutput.readlines():
+                    if "The reference LS state for this calculation results in" in line:
+                        maxEigvi = int(line.split("The reference LS state for this calculation results in")[1].strip().split()[0].strip())
+            
+            for eigv in range(1, maxEigvi + 1):
+                
+                calculated3holesStates.append([(i, jj, eigv)])
+                
+                currDir = rootDir + "/" + directory_name + "/3holes/" + shell_array_3holes[i] + "/2jj_" + str(jj) + "/eigv_" + str(eigv)
+                currFileName = shell_array_3holes[i] + "_" + str(jj) + "_" + str(eigv)
+                
+                configureStateInputFile(f05Template_nuc, currDir, currFileName, configuration_3holes[i], jj, eigv, [], int(nelectrons) - 2)
+                
+                parallel_3holes_paths.append(currDir + "/" + exe_file)
+        
+        
+        with open(file_cycle_log_3holes, "a") as log_3holes:
+            log_3holes.write("3 holes states discovery done.\nList of all discovered states:\n")
+            for state in calculated3holesStates:
+                log_3holes.write(', '.join([str(qn) for qn in state[0]]) + "\n")
+            
+            log_3holes.write("ListEnd\n")
+    
+    
+    
+    # Variables to control if the last calculated state has been reached in each cycle
+    found_cycle1 = False
+    found_cycle2 = False
+    found_cycle3 = False
+    found_cycle4 = False
+    
+    # If no starting cycle has been defined or the starting cycle is 1
+    if starting_cycle <= 1:
+        # Counter for the first state to be calculated in the state lists
+        start_counter = 0
+        
+        # If the starting cycle is 1 we search for the starting state in the list
+        if starting_cycle == 1:
+            counter = 0
+            for state in calculated3holesStates:
+                if found_cycle1 or starting_state == [(0, 0, 0)]:
+                    i, jj, eigv = state[0]
+                    
+                    currDir = rootDir + "/" + directory_name + "/3holes/" + shell_array_3holes[i] + "/2jj_" + str(jj) + "/eigv_" + str(eigv)
+                    currFileName = shell_array_3holes[i] + "_" + str(jj) + "_" + str(eigv)
+        
+                    parallel_3holes_paths.append(currDir + "/" + exe_file)
+                
+                counter += 1
+                
+                # Search for the starting state
+                if state[0] == starting_state:
+                    found_cycle1 = True
+                    start_counter = counter
+                
+        
+        # Execute parallel batch job with logging of calculated state
+        executeBatchStateCalculation(parallel_3holes_paths, file_cycle_log_3holes, calculated3holesStates[start_counter:], "First Cycle Last Calculated:\n")
+    
+    
+    failed_first_cycle = []
+    parallel_3holes_failed = []
+    
+    # -------------- FIRST CYCLE FOR CONVERGENCE CHECK -------------- #
+    
+    # If no starting cycle has been defined or the starting cycle is 1
+    if starting_cycle <= 1:
+        # Even if the starting cycle is 1 it means that the calculation has finished in the last executeBatchStateCalculation
+        counter = 0
+        for state in calculated3holesStates:
+            i, jj, eigv = state[0]
+            
+            currDir = rootDir + "/" + directory_name + "/3holes/" + shell_array_3holes[i] + "/2jj_" + str(jj) + "/eigv_" + str(eigv)
+            currFileName = shell_array_3holes[i] + "_" + str(jj) + "_" + str(eigv)
+            
+            converged, failed_orbital, overlap, higher_config, highest_percent, accuracy, Diff, welt = checkOutput(currDir, currFileName)
+            
+            calculated3holesStates[counter].append((higher_config, highest_percent, overlap, accuracy, Diff, welt))
+            
+            if not converged:
+                
+                configureStateInputFile(f05Template_10steps_nuc, currDir, currFileName, configuration_3holes[i], jj, eigv, [], int(nelectrons) - 2)
+            
+                parallel_3holes_failed.append(currDir + "/" + exe_file)
+                failed_first_cycle.append(counter)
+            else:
+                if Diff < 0.0 or Diff >= diffThreshold or overlap >= overlapsThreshold:
+                    configureStateInputFile(f05Template_10steps_nuc, currDir, currFileName, configuration_3holes[i], jj, eigv, [], int(nelectrons) - 2)
+            
+                    parallel_3holes_failed.append(currDir + "/" + exe_file)
+                    failed_first_cycle.append(counter)
+            
+            counter += 1
+        
+        # -------------- PRINT FIRST CYCLE RESULTS -------------- #
+        
+        with open(file_results, "a") as resultDump:
+            resultDump.write("First Cycle 3 Hole states\nShell, Shell index, 2J, Eigv, Higher Configuration, Percentage, Overlap, Accuracy, Energy Difference, Energy Welton\n")
+            for state in calculated3holesStates:
+                resultDump.write(shell_array_3holes[state[0][0]] + ", " + str(state[0][0]) + ", " + str(state[0][1]) + ", " + str(state[0][2]) + ", " + state[1][0] + ", " + str(state[1][1]) + ", " + str(state[1][2]) + ", " + str(state[1][3]) + ", " + str(state[1][4]) + ", " + str(state[1][5]) + "\n")
+        
+    
+    
+    # If no starting cycle has been defined or the starting cycle is 1 or 2
+    if starting_cycle <= 2:
+        # Counter for the first state to be calculated in the state lists
+        start_counter = 0
+        
+        # If the starting cycle is 2 we search for the starting state in the list and fill in the failed_first_cycle list
+        if starting_cycle == 2:
+            counter = 0
+            for state in calculated3holesStates:
+                if found_cycle2 or starting_state == [(0, 0, 0)]:
+                    i, jj, eigv = state[0]
+                    
+                    currDir = rootDir + "/" + directory_name + "/3holes/" + shell_array_3holes[i] + "/2jj_" + str(jj) + "/eigv_" + str(eigv)
+                    currFileName = shell_array_3holes[i] + "_" + str(jj) + "_" + str(eigv)
+                    
+                    converged, failed_orbital, overlap, higher_config, highest_percent, accuracy, Diff, welt = checkOutput(currDir, currFileName)
+                    
+                    calculated3holesStates[counter].append((higher_config, highest_percent, overlap, accuracy, Diff, welt))
+                    
+                    if not converged:
+                        # Only add this state to the calculation if we reached the starting state
+                        if found_cycle2 or starting_state == [(0, 0, 0)]:
+                            parallel_3holes_failed.append(currDir + "/" + exe_file)
+                        
+                        failed_first_cycle.append(counter)
+                    else:
+                        if Diff < 0.0 or Diff >= diffThreshold or overlap >= overlapsThreshold:
+                            # Only add this state to the calculation if we reached the starting state
+                            if found_cycle2 or starting_state == [(0, 0, 0)]:
+                                parallel_3holes_failed.append(currDir + "/" + exe_file)
+                            
+                            failed_first_cycle.append(counter)
+                
+                counter += 1
+                
+                # Search for the starting state
+                if state[0] == starting_state:
+                    found_cycle2 = True
+                    start_counter = counter
+                
+        
+        if len(parallel_3holes_failed) == 0:
+            writeResults3holes()
+            return
+        
+        # Execute parallel batch job with logging of calculated state
+        executeBatchStateCalculation(parallel_3holes_failed, file_cycle_log_3holes, calculated3holesStates[start_counter:], "Second Cycle Last Calculated:\n")
+    
+    
+    failed_second_cycle = []
+    parallel_3holes_failed = []
+    
+    
+    # -------------- SECOND CYCLE FOR CONVERGENCE CHECK WITH FAILED ORBITALS -------------- #
+    
+    # If no starting cycle has been defined or the starting cycle is 1 or 2
+    if starting_cycle <= 2:
+        # Even if the starting cycle is 2 it means that the calculation has finished in the last executeBatchStateCalculation
+        # After having filled the failed_first_cycle list we can continue the calculation
+        for counter in failed_first_cycle:
+            i, jj, eigv = calculated3holesStates[counter][0]
+            
+            currDir = rootDir + "/" + directory_name + "/3holes/" + shell_array_3holes[i] + "/2jj_" + str(jj) + "/eigv_" + str(eigv)
+            currFileName = shell_array_3holes[i] + "_" + str(jj) + "_" + str(eigv)
+            
+            converged, failed_orbital, overlap, higher_config, highest_percent, accuracy, Diff, welt = checkOutput(currDir, currFileName)
+            
+            failed_orbs = [failed_orbital.strip() + "  1 5 0 1 :"]
+            
+            
+            calculated3holesStates[counter][-1] = (higher_config, highest_percent, overlap, accuracy, Diff, welt, failed_orbs)
+            
+            if not converged:
+                if failed_orbital != '':
+                    configureStateInputFile(f05Template_10steps_Forbs_nuc, currDir, currFileName, configuration_3holes[i], jj, eigv, failed_orbs, int(nelectrons) - 2)
+                
+                    parallel_3holes_failed.append(currDir + "/" + exe_file)
+                
+                failed_second_cycle.append(counter)
+            else:
+                if Diff < 0.0 or Diff >= diffThreshold or overlap >= overlapsThreshold:
+                    if failed_orbital != '':
+                        configureStateInputFile(f05Template_10steps_Forbs_nuc, currDir, currFileName, configuration_3holes[i], jj, eigv, failed_orbs, int(nelectrons) - 2)
+            
+                        parallel_3holes_failed.append(currDir + "/" + exe_file)
+                    
+                    failed_second_cycle.append(counter)
+            
+        
+        # -------------- PRINT SECOND CYCLE RESULTS -------------- #
+        
+        with open(file_results, "a") as resultDump:
+            resultDump.write("Second Cycle 3 Hole states\nShell, Shell index, 2J, Eigv, Higher Configuration, Percentage, Overlap, Accuracy, Energy Difference, Energy Welton\n")
+            for state in calculated3holesStates:
+                resultDump.write(shell_array_3holes[state[0][0]] + ", " + str(state[0][0]) + ", " + str(state[0][1]) + ", " + str(state[0][2]) + ", " + state[1][0] + ", " + str(state[1][1]) + ", " + str(state[1][2]) + ", " + str(state[1][3]) + ", " + str(state[1][4]) + ", " + str(state[1][5]) + "\n")
+        
+    
+    
+    # If no starting cycle has been defined or the starting cycle is 1, 2 or 3
+    if starting_cycle <= 3:
+        # Counter for the first state to be calculated in the state lists
+        start_counter = 0
+        
+        # If the starting cycle is 3 we search for the starting state in the list and fill in the failed_second_cycle list
+        if starting_cycle == 3:
+            counter = 0
+            for state in calculated3holesStates:
+                i, jj, eigv = state[0]
+                
+                currDir = rootDir + "/" + directory_name + "/3holes/" + shell_array_3holes[i] + "/2jj_" + str(jj) + "/eigv_" + str(eigv)
+                currFileName = shell_array_3holes[i] + "_" + str(jj) + "_" + str(eigv)
+        
+                converged, failed_orbital, overlap, higher_config, highest_percent, accuracy, Diff, welt = checkOutput(currDir, currFileName)
+                
+                calculated3holesStates[counter].append((higher_config, highest_percent, overlap, accuracy, Diff, welt))
+                
+                if not converged:
+                    # Only add this state to the calculation if we reached the starting state
+                    if found_cycle3 or starting_state == [(0, 0, 0)]:
+                        parallel_3holes_failed.append(currDir + "/" + exe_file)
+                    
+                    failed_second_cycle.append(counter)
+                else:
+                    if Diff < 0.0 or Diff >= diffThreshold or overlap >= overlapsThreshold:
+                        # Only add this state to the calculation if we reached the starting state
+                        if found_cycle3 or starting_state == [(0, 0, 0)]:
+                            parallel_3holes_failed.append(currDir + "/" + exe_file)
+                        
+                        failed_second_cycle.append(counter)
+                
+                counter += 1
+                
+                if state[0] == starting_state:
+                    found_cycle3 = True
+                    start_counter = counter
+                
+        
+        if len(parallel_3holes_failed) == 0:
+            writeResults3holes()
+            return
+        
+        # Execute parallel batch job with logging of calculated state
+        executeBatchStateCalculation(parallel_3holes_failed, file_cycle_log_3holes, calculated3holesStates, "Third Cycle Last Calculated:\n")
+    
+    
+    failed_third_cycle = []
+    parallel_3holes_failed = []
+    
+    # -------------- THIRD CYCLE FOR CONVERGENCE CHECK WITH FAILED ORBITALS -------------- #
+    
+    # If no starting cycle has been defined or the starting cycle is 1 or 2
+    if starting_cycle <= 3:
+        # Even if the starting cycle is 3 it means that the calculation has finished in the last executeBatchStateCalculation
+        # After having filled the failed_second_cycle list we can continue the calculation
+        for counter in failed_second_cycle:
+            i, jj, eigv = calculated3holesStates[counter][0]
+            
+            currDir = rootDir + "/" + directory_name + "/3holes/" + shell_array_3holes[i] + "/2jj_" + str(jj) + "/eigv_" + str(eigv)
+            currFileName = shell_array_3holes[i] + "_" + str(jj) + "_" + str(eigv)
+            
+            converged, failed_orbital, overlap, higher_config, highest_percent, accuracy, Diff, welt = checkOutput(currDir, currFileName)
+            
+            failed_orbs = calculated3holesStates[counter][1][6]
+            
+            if failed_orbital != '':
+                failed_orbs.append("    " + failed_orbital + "  1 5 0 1 :")
+            
+            
+            if not converged:
+                if failed_orbs[0] != "  1 5 0 1 :" and len(failed_orbs) == 2:
+                    configureStateInputFile(f05Template_10steps_Forbs_nuc, currDir, currFileName, configuration_3holes[i], jj, eigv, failed_orbs, int(nelectrons) - 2)
+            
+                    parallel_3holes_failed.append(currDir + "/" + exe_file)
+                elif len(failed_orbs) == 2:
+                    del failed_orbs[0]
+                    
+                    configureStateInputFile(f05Template_10steps_Forbs_nuc, currDir, currFileName, configuration_3holes[i], jj, eigv, failed_orbs, int(nelectrons) - 2)
+            
+                    parallel_3holes_failed.append(currDir + "/" + exe_file)
+                
+                failed_third_cycle.append(counter)
+            else:
+                if Diff < 0.0 or Diff >= diffThreshold or overlap >= overlapsThreshold:
+                    if failed_orbs[0] != "  1 5 0 1 :" and len(failed_orbs) == 2:
+                        configureStateInputFile(f05Template_10steps_Forbs_nuc, currDir, currFileName, configuration_3holes[i], jj, eigv, failed_orbs, int(nelectrons) - 2)
+            
+                        parallel_3holes_failed.append(currDir + "/" + exe_file)
+                    elif len(failed_orbs) == 2:
+                        del failed_orbs[0]
+                        
+                        configureStateInputFile(f05Template_10steps_Forbs_nuc, currDir, currFileName, configuration_3holes[i], jj, eigv, failed_orbs, int(nelectrons) - 2)
+            
+                        parallel_3holes_failed.append(currDir + "/" + exe_file)
+                
+                failed_third_cycle.append(counter)
+            
+            calculated3holesStates[counter][-1] = (higher_config, highest_percent, overlap, accuracy, Diff, welt, failed_orbs)
+            
+        
+        # -------------- PRINT THIRD CYCLE RESULTS -------------- #
+        
+        with open(file_results, "a") as resultDump:
+            resultDump.write("Third Cycle 3 Hole states\nShell, Shell index, 2J, Eigv, Higher Configuration, Percentage, Overlap, Accuracy, Energy Difference, Energy Welton\n")
+            for state in calculated3holesStates:
+                resultDump.write(shell_array_3holes[state[0][0]] + ", " + str(state[0][0]) + ", " + str(state[0][1]) + ", " + str(state[0][2]) + ", " + state[1][0] + ", " + str(state[1][1]) + ", " + str(state[1][2]) + ", " + str(state[1][3]) + ", " + str(state[1][4]) + ", " + str(state[1][5]) + "\n")
+    
+    
+    # If no starting cycle has been defined or the starting cycle is 1, 2, 3 or 4
+    # Counter for the first state to be calculated in the state lists
+    start_counter = 0
+    
+    # If the starting cycle is 4 we search for the starting state in the list and fill in the failed_third_cycle list
+    if starting_cycle == 4:
+        counter = 0
+        for state in calculated3holesStates:
+            i, jj, eigv = state[0]
+            
+            currDir = rootDir + "/" + directory_name + "/3holes/" + shell_array_3holes[i] + "/2jj_" + str(jj) + "/eigv_" + str(eigv)
+            currFileName = shell_array_3holes[i] + "_" + str(jj) + "_" + str(eigv)
+            
+            converged, failed_orbital, overlap, higher_config, highest_percent, accuracy, Diff, welt = checkOutput(currDir, currFileName)
+            
+            calculated3holesStates[counter].append((higher_config, highest_percent, overlap, accuracy, Diff, welt))
+            
+            if not converged:
+                # Only add this state to the calculation if we reached the starting state
+                if found_cycle4 or starting_state == [(0, 0, 0)]:
+                    parallel_3holes_failed.append(currDir + "/" + exe_file)
+                
+                failed_third_cycle.append(counter)
+            else:
+                if Diff < 0.0 or Diff >= diffThreshold or overlap >= overlapsThreshold:
+                    # Only add this state to the calculation if we reached the starting state
+                    if found_cycle4 or starting_state == [(0, 0, 0)]:
+                        parallel_3holes_failed.append(currDir + "/" + exe_file)
+                    
+                    failed_third_cycle.append(counter)
+            
+            counter += 1
+            
+            if state[0] == starting_state:
+                found_cycle4 = True
+                start_counter = counter
+            
+    
+    if len(parallel_3holes_failed) == 0:
+        writeResults3holes()
+        return
+    
+    # Execute parallel batch job with logging of calculated state
+    executeBatchStateCalculation(parallel_3holes_failed, file_cycle_log_3holes, calculated3holesStates, "Fourth Cycle Last Calculated:\n")
+    
+    
+    sat_auger_by_hand = []
+    
+    # -------------- FOURTH CYCLE TO CHECK WHICH STATES NEED TO BE REDONE BY HAND -------------- #
+    
+    # If no starting cycle has been defined or the starting cycle is 1, 2, 3 or 4
+    for counter in failed_third_cycle:
+        i, jj, eigv = calculated3holesStates[counter][0]
+        
+        currDir = rootDir + "/" + directory_name + "/3holes/" + shell_array_3holes[i] + "/2jj_" + str(jj) + "/eigv_" + str(eigv)
+        currFileName = shell_array_3holes[i] + "_" + str(jj) + "_" + str(eigv)
+        
+        converged, failed_orbital, overlap, higher_config, highest_percent, accuracy, Diff, welt = checkOutput(currDir, currFileName)
+        
+        calculated3holesStates[counter][-1] = (higher_config, highest_percent, overlap, accuracy, Diff, welt)
+        
+        if not converged:
+            sat_auger_by_hand.append(counter)
+        else:
+            if Diff < 0.0 or Diff >= diffThreshold or overlap > overlapsThreshold:
+                sat_auger_by_hand.append(counter)
+    
+    
+    # -------------- WRITE RESULTS TO THE FILES -------------- #
+    
+    writeResults3holes()
+
+
+def calculateShakeupStates(starting_cycle = -1, starting_state = [(0, 0, 0)]):
+    global calculatedShakeupStates, shakeup_by_hand
+    
+    jj_vals = []
+    
+    parallel_shakeup_paths = []
+    
+    # If no starting cycle has been specified
+    if starting_cycle == -1:
+        # -------------- DETERMINE 2J MAX VALUE -------------- #
+        
+        for i in range(len(shell_array_shakeup)):
+            currDir = rootDir + "/" + directory_name + "/shakeup/" + shell_array_shakeup[i]
+            currFileName = shell_array_shakeup[i]
+            
+            configureStateInputFile(f05Template_nuc, currDir, currFileName, configuration_shakeup[i], "100" if int(nelectrons) % 2 == 0 else "101", "100", [], int(nelectrons))
+            
+            parallel_shakeup_paths.append(currDir + "/" + exe_file)
+            
+        
+        # Execute parallel batch job
+        executeBatchStateCalculation(parallel_shakeup_paths)
+        
+        
+        parallel_shakeup_paths = []
+        
+        # -------------- DETERMINE EIGENVALUE MAX VALUE -------------- #
+        
+        for i in range(len(shell_array_shakeup)):
+            currDir = rootDir + "/" + directory_name + "/shakeup/" + shell_array_shakeup[i]
+            currFileName = shell_array_shakeup[i]
+            
+            maxJJi = 0
+            
+            with open(currDir + "/" + currFileName + ".f06", "r") as labelOutput:
+                for line in labelOutput.readlines():
+                    if "!!!!! For state # 1 and configuration   1 highest 2Jz possible value is" in line:
+                        maxJJi = int(line.split("!!!!! For state # 1 and configuration   1 highest 2Jz possible value is")[1].split()[0].strip())
+            
+            for jj in range(0 if maxJJi % 2 == 0 else 1, maxJJi + 1, 2):
+                jj_vals.append((i, jj))
+                
+                currDir = rootDir + "/" + directory_name + "/shakeup/" + shell_array_shakeup[i] + "/2jj_" + str(jj)
+                currFileName = shell_array_shakeup[i] + "_" + str(jj)
+                
+                configureStateInputFile(f05Template_nuc, currDir, currFileName, configuration_shakeup[i], jj, "100", [], int(nelectrons))
+            
+                parallel_shakeup_paths.append(currDir + "/" + exe_file)
+        
+        # Execute parallel batch job
+        executeBatchStateCalculation(parallel_shakeup_paths)
+        
+        
+        parallel_shakeup_paths = []
+        
+        # -------------- FULL STATE CALCULATION -------------- #
+        
+        for i, jj in jj_vals:
+            currDir = rootDir + "/" + directory_name + "/shakeup/" + shell_array_shakeup[i] + "/2jj_" + str(jj)
+            currFileName = shell_array_shakeup[i] + "_" + str(jj)
+            
+            maxEigvi = 0
+            
+            with open(currDir + "/" + currFileName + ".f06", "r") as jjiOutput:
+                for line in jjiOutput.readlines():
+                    if "The reference LS state for this calculation results in" in line:
+                        maxEigvi = int(line.split("The reference LS state for this calculation results in")[1].strip().split()[0].strip())
+            
+            for eigv in range(1, maxEigvi + 1):
+                
+                calculatedShakeupStates.append([(i, jj, eigv)])
+                
+                currDir = rootDir + "/" + directory_name + "/shakeup/" + shell_array_shakeup[i] + "/2jj_" + str(jj) + "/eigv_" + str(eigv)
+                currFileName = shell_array_shakeup[i] + "_" + str(jj) + "_" + str(eigv)
+                
+                configureStateInputFile(f05Template_nuc, currDir, currFileName, configuration_shakeup[i], jj, eigv, [], int(nelectrons))
+                
+                parallel_shakeup_paths.append(currDir + "/" + exe_file)
+        
+        
+        with open(file_cycle_log_shakeup, "a") as log_shakeup:
+            log_shakeup.write("Shake-up states discovery done.\nList of all discovered states:\n")
+            for state in calculatedShakeupStates:
+                log_shakeup.write(', '.join([str(qn) for qn in state[0]]) + "\n")
+            
+            log_shakeup.write("ListEnd\n")
+    
+    
+    
+    # Variables to control if the last calculated state has been reached in each cycle
+    found_cycle1 = False
+    found_cycle2 = False
+    found_cycle3 = False
+    found_cycle4 = False
+    
+    # If no starting cycle has been defined or the starting cycle is 1
+    if starting_cycle <= 1:
+        # Counter for the first state to be calculated in the state lists
+        start_counter = 0
+        
+        # If the starting cycle is 1 we search for the starting state in the list
+        if starting_cycle == 1:
+            counter = 0
+            for state in calculatedShakeupStates:
+                if found_cycle1 or starting_state == [(0, 0, 0)]:
+                    i, jj, eigv = state[0]
+                    
+                    currDir = rootDir + "/" + directory_name + "/shakeup/" + shell_array_shakeup[i] + "/2jj_" + str(jj) + "/eigv_" + str(eigv)
+                    currFileName = shell_array_shakeup[i] + "_" + str(jj) + "_" + str(eigv)
+        
+                    parallel_shakeup_paths.append(currDir + "/" + exe_file)
+                
+                counter += 1
+                
+                # Search for the starting state
+                if state[0] == starting_state:
+                    found_cycle1 = True
+                    start_counter = counter
+                
+        
+        # Execute parallel batch job with logging of calculated state
+        executeBatchStateCalculation(parallel_shakeup_paths, file_cycle_log_shakeup, calculatedShakeupStates[start_counter:], "First Cycle Last Calculated:\n")
+    
+    
+    failed_first_cycle = []
+    parallel_shakeup_failed = []
+    
+    # -------------- FIRST CYCLE FOR CONVERGENCE CHECK -------------- #
+    
+    # If no starting cycle has been defined or the starting cycle is 1
+    if starting_cycle <= 1:
+        # Even if the starting cycle is 1 it means that the calculation has finished in the last executeBatchStateCalculation
+        counter = 0
+        for state in calculatedShakeupStates:
+            i, jj, eigv = state[0]
+            
+            currDir = rootDir + "/" + directory_name + "/shakeup/" + shell_array_shakeup[i] + "/2jj_" + str(jj) + "/eigv_" + str(eigv)
+            currFileName = shell_array_shakeup[i] + "_" + str(jj) + "_" + str(eigv)
+            
+            converged, failed_orbital, overlap, higher_config, highest_percent, accuracy, Diff, welt = checkOutput(currDir, currFileName)
+            
+            calculatedShakeupStates[counter].append((higher_config, highest_percent, overlap, accuracy, Diff, welt))
+            
+            if not converged:
+                
+                configureStateInputFile(f05Template_10steps_nuc, currDir, currFileName, configuration_shakeup[i], jj, eigv, [], int(nelectrons))
+            
+                parallel_shakeup_failed.append(currDir + "/" + exe_file)
+                failed_first_cycle.append(counter)
+            else:
+                if Diff < 0.0 or Diff >= diffThreshold or overlap >= overlapsThreshold:
+                    configureStateInputFile(f05Template_10steps_nuc, currDir, currFileName, configuration_shakeup[i], jj, eigv, [], int(nelectrons))
+            
+                    parallel_shakeup_failed.append(currDir + "/" + exe_file)
+                    failed_first_cycle.append(counter)
+            
+            counter += 1
+        
+        # -------------- PRINT FIRST CYCLE RESULTS -------------- #
+        
+        with open(file_results, "a") as resultDump:
+            resultDump.write("First Cycle Shake-up states\nShell, Shell index, 2J, Eigv, Higher Configuration, Percentage, Overlap, Accuracy, Energy Difference, Energy Welton\n")
+            for state in calculatedShakeupStates:
+                resultDump.write(shell_array_shakeup[state[0][0]] + ", " + str(state[0][0]) + ", " + str(state[0][1]) + ", " + str(state[0][2]) + ", " + state[1][0] + ", " + str(state[1][1]) + ", " + str(state[1][2]) + ", " + str(state[1][3]) + ", " + str(state[1][4]) + ", " + str(state[1][5]) + "\n")
+        
+    
+    
+    # If no starting cycle has been defined or the starting cycle is 1 or 2
+    if starting_cycle <= 2:
+        # Counter for the first state to be calculated in the state lists
+        start_counter = 0
+        
+        # If the starting cycle is 2 we search for the starting state in the list and fill in the failed_first_cycle list
+        if starting_cycle == 2:
+            counter = 0
+            for state in calculatedShakeupStates:
+                if found_cycle2 or starting_state == [(0, 0, 0)]:
+                    i, jj, eigv = state[0]
+                    
+                    currDir = rootDir + "/" + directory_name + "/shakeup/" + shell_array_shakeup[i] + "/2jj_" + str(jj) + "/eigv_" + str(eigv)
+                    currFileName = shell_array_shakeup[i] + "_" + str(jj) + "_" + str(eigv)
+                    
+                    converged, failed_orbital, overlap, higher_config, highest_percent, accuracy, Diff, welt = checkOutput(currDir, currFileName)
+                    
+                    calculatedShakeupStates[counter].append((higher_config, highest_percent, overlap, accuracy, Diff, welt))
+                    
+                    if not converged:
+                        # Only add this state to the calculation if we reached the starting state
+                        if found_cycle2 or starting_state == [(0, 0, 0)]:
+                            parallel_shakeup_failed.append(currDir + "/" + exe_file)
+                        
+                        failed_first_cycle.append(counter)
+                    else:
+                        if Diff < 0.0 or Diff >= diffThreshold or overlap >= overlapsThreshold:
+                            # Only add this state to the calculation if we reached the starting state
+                            if found_cycle2 or starting_state == [(0, 0, 0)]:
+                                parallel_shakeup_failed.append(currDir + "/" + exe_file)
+                            
+                            failed_first_cycle.append(counter)
+                
+                counter += 1
+                
+                # Search for the starting state
+                if state[0] == starting_state:
+                    found_cycle2 = True
+                    start_counter = counter
+                
+        
+        if len(parallel_shakeup_failed) == 0:
+            writeResultsShakeup()
+            return
+        
+        # Execute parallel batch job with logging of calculated state
+        executeBatchStateCalculation(parallel_shakeup_failed, file_cycle_log_shakeup, calculatedShakeupStates[start_counter:], "Second Cycle Last Calculated:\n")
+    
+    
+    failed_second_cycle = []
+    parallel_shakeup_failed = []
+    
+    
+    # -------------- SECOND CYCLE FOR CONVERGENCE CHECK WITH FAILED ORBITALS -------------- #
+    
+    # If no starting cycle has been defined or the starting cycle is 1 or 2
+    if starting_cycle <= 2:
+        # Even if the starting cycle is 2 it means that the calculation has finished in the last executeBatchStateCalculation
+        # After having filled the failed_first_cycle list we can continue the calculation
+        for counter in failed_first_cycle:
+            i, jj, eigv = calculatedShakeupStates[counter][0]
+            
+            currDir = rootDir + "/" + directory_name + "/shakeup/" + shell_array_shakeup[i] + "/2jj_" + str(jj) + "/eigv_" + str(eigv)
+            currFileName = shell_array_shakeup[i] + "_" + str(jj) + "_" + str(eigv)
+            
+            converged, failed_orbital, overlap, higher_config, highest_percent, accuracy, Diff, welt = checkOutput(currDir, currFileName)
+            
+            failed_orbs = [failed_orbital.strip() + "  1 5 0 1 :"]
+            
+            
+            calculatedShakeupStates[counter][-1] = (higher_config, highest_percent, overlap, accuracy, Diff, welt, failed_orbs)
+            
+            if not converged:
+                if failed_orbital != '':
+                    configureStateInputFile(f05Template_10steps_Forbs_nuc, currDir, currFileName, configuration_shakeup[i], jj, eigv, failed_orbs, int(nelectrons))
+                
+                    parallel_shakeup_failed.append(currDir + "/" + exe_file)
+                
+                failed_second_cycle.append(counter)
+            else:
+                if Diff < 0.0 or Diff >= diffThreshold or overlap >= overlapsThreshold:
+                    if failed_orbital != '':
+                        configureStateInputFile(f05Template_10steps_Forbs_nuc, currDir, currFileName, configuration_shakeup[i], jj, eigv, failed_orbs, int(nelectrons))
+            
+                        parallel_shakeup_failed.append(currDir + "/" + exe_file)
+                    
+                    failed_second_cycle.append(counter)
+            
+        
+        # -------------- PRINT SECOND CYCLE RESULTS -------------- #
+        
+        with open(file_results, "a") as resultDump:
+            resultDump.write("Second Cycle Shake-up states\nShell, Shell index, 2J, Eigv, Higher Configuration, Percentage, Overlap, Accuracy, Energy Difference, Energy Welton\n")
+            for state in calculatedShakeupStates:
+                resultDump.write(shell_array_shakeup[state[0][0]] + ", " + str(state[0][0]) + ", " + str(state[0][1]) + ", " + str(state[0][2]) + ", " + state[1][0] + ", " + str(state[1][1]) + ", " + str(state[1][2]) + ", " + str(state[1][3]) + ", " + str(state[1][4]) + ", " + str(state[1][5]) + "\n")
+        
+    
+    
+    # If no starting cycle has been defined or the starting cycle is 1, 2 or 3
+    if starting_cycle <= 3:
+        # Counter for the first state to be calculated in the state lists
+        start_counter = 0
+        
+        # If the starting cycle is 3 we search for the starting state in the list and fill in the failed_second_cycle list
+        if starting_cycle == 3:
+            counter = 0
+            for state in calculatedShakeupStates:
+                i, jj, eigv = state[0]
+                
+                currDir = rootDir + "/" + directory_name + "/shakeup/" + shell_array_shakeup[i] + "/2jj_" + str(jj) + "/eigv_" + str(eigv)
+                currFileName = shell_array_shakeup[i] + "_" + str(jj) + "_" + str(eigv)
+        
+                converged, failed_orbital, overlap, higher_config, highest_percent, accuracy, Diff, welt = checkOutput(currDir, currFileName)
+                
+                calculatedShakeupStates[counter].append((higher_config, highest_percent, overlap, accuracy, Diff, welt))
+                
+                if not converged:
+                    # Only add this state to the calculation if we reached the starting state
+                    if found_cycle3 or starting_state == [(0, 0, 0)]:
+                        parallel_shakeup_failed.append(currDir + "/" + exe_file)
+                    
+                    failed_second_cycle.append(counter)
+                else:
+                    if Diff < 0.0 or Diff >= diffThreshold or overlap >= overlapsThreshold:
+                        # Only add this state to the calculation if we reached the starting state
+                        if found_cycle3 or starting_state == [(0, 0, 0)]:
+                            parallel_shakeup_failed.append(currDir + "/" + exe_file)
+                        
+                        failed_second_cycle.append(counter)
+                
+                counter += 1
+                
+                if state[0] == starting_state:
+                    found_cycle3 = True
+                    start_counter = counter
+                
+        
+        if len(parallel_shakeup_failed) == 0:
+            writeResultsShakeup()
+            return
+        
+        # Execute parallel batch job with logging of calculated state
+        executeBatchStateCalculation(parallel_shakeup_failed, file_cycle_log_shakeup, calculatedShakeupStates, "Third Cycle Last Calculated:\n")
+    
+    
+    failed_third_cycle = []
+    parallel_shakeup_failed = []
+    
+    # -------------- THIRD CYCLE FOR CONVERGENCE CHECK WITH FAILED ORBITALS -------------- #
+    
+    # If no starting cycle has been defined or the starting cycle is 1 or 2
+    if starting_cycle <= 3:
+        # Even if the starting cycle is 3 it means that the calculation has finished in the last executeBatchStateCalculation
+        # After having filled the failed_second_cycle list we can continue the calculation
+        for counter in failed_second_cycle:
+            i, jj, eigv = calculatedShakeupStates[counter][0]
+            
+            currDir = rootDir + "/" + directory_name + "/shakeup/" + shell_array_shakeup[i] + "/2jj_" + str(jj) + "/eigv_" + str(eigv)
+            currFileName = shell_array_shakeup[i] + "_" + str(jj) + "_" + str(eigv)
+            
+            converged, failed_orbital, overlap, higher_config, highest_percent, accuracy, Diff, welt = checkOutput(currDir, currFileName)
+            
+            failed_orbs = calculatedShakeupStates[counter][1][6]
+            
+            if failed_orbital != '':
+                failed_orbs.append("    " + failed_orbital + "  1 5 0 1 :")
+            
+            
+            if not converged:
+                if failed_orbs[0] != "  1 5 0 1 :" and len(failed_orbs) == 2:
+                    configureStateInputFile(f05Template_10steps_Forbs_nuc, currDir, currFileName, configuration_shakeup[i], jj, eigv, failed_orbs, int(nelectrons))
+            
+                    parallel_shakeup_failed.append(currDir + "/" + exe_file)
+                elif len(failed_orbs) == 2:
+                    del failed_orbs[0]
+                    
+                    configureStateInputFile(f05Template_10steps_Forbs_nuc, currDir, currFileName, configuration_shakeup[i], jj, eigv, failed_orbs, int(nelectrons))
+            
+                    parallel_shakeup_failed.append(currDir + "/" + exe_file)
+                
+                failed_third_cycle.append(counter)
+            else:
+                if Diff < 0.0 or Diff >= diffThreshold or overlap >= overlapsThreshold:
+                    if failed_orbs[0] != "  1 5 0 1 :" and len(failed_orbs) == 2:
+                        configureStateInputFile(f05Template_10steps_Forbs_nuc, currDir, currFileName, configuration_shakeup[i], jj, eigv, failed_orbs, int(nelectrons))
+            
+                        parallel_shakeup_failed.append(currDir + "/" + exe_file)
+                    elif len(failed_orbs) == 2:
+                        del failed_orbs[0]
+                        
+                        configureStateInputFile(f05Template_10steps_Forbs_nuc, currDir, currFileName, configuration_shakeup[i], jj, eigv, failed_orbs, int(nelectrons))
+            
+                        parallel_shakeup_failed.append(currDir + "/" + exe_file)
+                
+                failed_third_cycle.append(counter)
+            
+            calculatedShakeupStates[counter][-1] = (higher_config, highest_percent, overlap, accuracy, Diff, welt, failed_orbs)
+            
+        
+        # -------------- PRINT THIRD CYCLE RESULTS -------------- #
+        
+        with open(file_results, "a") as resultDump:
+            resultDump.write("Third Cycle Shake-up states\nShell, Shell index, 2J, Eigv, Higher Configuration, Percentage, Overlap, Accuracy, Energy Difference, Energy Welton\n")
+            for state in calculatedShakeupStates:
+                resultDump.write(shell_array_shakeup[state[0][0]] + ", " + str(state[0][0]) + ", " + str(state[0][1]) + ", " + str(state[0][2]) + ", " + state[1][0] + ", " + str(state[1][1]) + ", " + str(state[1][2]) + ", " + str(state[1][3]) + ", " + str(state[1][4]) + ", " + str(state[1][5]) + "\n")
+    
+    
+    # If no starting cycle has been defined or the starting cycle is 1, 2, 3 or 4
+    # Counter for the first state to be calculated in the state lists
+    start_counter = 0
+    
+    # If the starting cycle is 4 we search for the starting state in the list and fill in the failed_third_cycle list
+    if starting_cycle == 4:
+        counter = 0
+        for state in calculatedShakeupStates:
+            i, jj, eigv = state[0]
+            
+            currDir = rootDir + "/" + directory_name + "/shakeup/" + shell_array_shakeup[i] + "/2jj_" + str(jj) + "/eigv_" + str(eigv)
+            currFileName = shell_array_shakeup[i] + "_" + str(jj) + "_" + str(eigv)
+            
+            converged, failed_orbital, overlap, higher_config, highest_percent, accuracy, Diff, welt = checkOutput(currDir, currFileName)
+            
+            calculatedShakeupStates[counter].append((higher_config, highest_percent, overlap, accuracy, Diff, welt))
+            
+            if not converged:
+                # Only add this state to the calculation if we reached the starting state
+                if found_cycle4 or starting_state == [(0, 0, 0)]:
+                    parallel_shakeup_failed.append(currDir + "/" + exe_file)
+                
+                failed_third_cycle.append(counter)
+            else:
+                if Diff < 0.0 or Diff >= diffThreshold or overlap >= overlapsThreshold:
+                    # Only add this state to the calculation if we reached the starting state
+                    if found_cycle4 or starting_state == [(0, 0, 0)]:
+                        parallel_shakeup_failed.append(currDir + "/" + exe_file)
+                    
+                    failed_third_cycle.append(counter)
+            
+            counter += 1
+            
+            if state[0] == starting_state:
+                found_cycle4 = True
+                start_counter = counter
+            
+    
+    if len(parallel_shakeup_failed) == 0:
+        writeResultsShakeup()
+        return
+    
+    # Execute parallel batch job with logging of calculated state
+    executeBatchStateCalculation(parallel_shakeup_failed, file_cycle_log_shakeup, calculatedShakeupStates, "Fourth Cycle Last Calculated:\n")
+    
+    
+    shakeup_by_hand = []
+    
+    # -------------- FOURTH CYCLE TO CHECK WHICH STATES NEED TO BE REDONE BY HAND -------------- #
+    
+    # If no starting cycle has been defined or the starting cycle is 1, 2, 3 or 4
+    for counter in failed_third_cycle:
+        i, jj, eigv = calculatedShakeupStates[counter][0]
+        
+        currDir = rootDir + "/" + directory_name + "/shakeup/" + shell_array_shakeup[i] + "/2jj_" + str(jj) + "/eigv_" + str(eigv)
+        currFileName = shell_array_shakeup[i] + "_" + str(jj) + "_" + str(eigv)
+        
+        converged, failed_orbital, overlap, higher_config, highest_percent, accuracy, Diff, welt = checkOutput(currDir, currFileName)
+        
+        calculatedShakeupStates[counter][-1] = (higher_config, highest_percent, overlap, accuracy, Diff, welt)
+        
+        if not converged:
+            shakeup_by_hand.append(counter)
+        else:
+            if Diff < 0.0 or Diff >= diffThreshold or overlap > overlapsThreshold:
+                shakeup_by_hand.append(counter)
+    
+    
+    # -------------- WRITE RESULTS TO THE FILES -------------- #
+    
+    writeResultsShakeup()
+
+
+
 def sortCalculatedStates():
-    global calculated1holeStates, calculated2holesStates
+    global calculated1holeStates, calculated2holesStates, calculate3holesStates, calculateShakeupStates
     
     calculated1holeStates.sort(key = lambda x: x[1][-1])
     
@@ -1968,6 +3533,23 @@ def sortCalculatedStates():
     with open(file_sorted_2holes, "w") as sorted_2holes:
         for state in calculated2holesStates:
             sorted_2holes.write(', '.join([str(qn) for qn in state[0]]) + "; " + ', '.join([str(par) for par in state[1]]) + "\n")
+    
+    
+    if calculate_3holes:
+        calculated3holesStates.sort(key = lambda x: x[1][-1])
+        
+        with open(file_sorted_3holes, "w") as sorted_3holes:
+            for state in calculated3holesStates:
+                sorted_3holes.write(', '.join([str(qn) for qn in state[0]]) + "; " + ', '.join([str(par) for par in state[1]]) + "\n")
+    
+    
+    if calculate_shakeup:
+        calculatedShakeupStates.sort(key = lambda x: x[1][-1])
+        
+        with open(file_sorted_shakeup, "w") as sorted_shakeup:
+            for state in calculatedShakeupStates:
+                sorted_shakeup.write(', '.join([str(qn) for qn in state[0]]) + "; " + ', '.join([str(par) for par in state[1]]) + "\n")
+    
 
 
 
@@ -2335,7 +3917,7 @@ def rates_satellite(starting_transition = [(0, 0, 0), (0, 0, 0)]):
         executeBatchTransitionCalculation(parallel_transition_paths, \
                                         parallel_initial_src_paths, parallel_final_src_paths, \
                                         parallel_initial_dst_paths, parallel_final_dst_paths, \
-                                        file_calculated_sat, calculatedSatelliteTransitions, "Calculated transitions:\n")
+                                        file_calculated_shakeoff, calculatedSatelliteTransitions, "Calculated transitions:\n")
     
     
     energies = []
@@ -2366,7 +3948,7 @@ def rates_satellite(starting_transition = [(0, 0, 0), (0, 0, 0)]):
     
     # -------------- WRITE RESULTS TO THE FILES -------------- #
     
-    with open(file_rates_satellites, "w") as sat_rates:
+    with open(file_rates_shakeoff, "w") as sat_rates:
         sat_rates.write("Calculated Satellite Transitions\nTransition register\tShell IS\tIS Configuration\tIS 2JJ\tIS eigenvalue\tIS higher configuration\tIS percentage\tShell FS\tFS Configuration\tFS 2JJ\tFS eigenvalue\tFS higher configuration\tFS percentage\ttransition energy [eV]\trate [s-1]\tnumber multipoles\ttotal rate from IS\tbranching ratio\n")
         combCnt = 0
         for counter, state_f in enumerate(calculated2holesStates):
@@ -2466,7 +4048,7 @@ def calculateSpectra(radiative_done, auger_done, satellite_done):
         radiative_rate_per_shell_sat[state_i[0]] += float(pars[1]) * (state_i[1] + 1)
     
     
-    with open(file_rates_sums_sat, "w") as rates_sums_sat:
+    with open(file_rates_sums_shakeoff, "w") as rates_sums_sat:
         for k in range(len(shell_array_2holes)):
             rates_sums_sat.write(shell_array_2holes[k] + "\n")
             rates_sums_sat.write("multiplicity of states = " + str(multiplicity_JJ_sat[k]) + "\n")
@@ -2554,7 +4136,7 @@ def calculateSpectra(radiative_done, auger_done, satellite_done):
 
     print("############ Writing satellite level widths ###################")
     
-    with open(file_level_widths_sat, "w") as level_widths_sat:
+    with open(file_level_widths_shakeoff, "w") as level_widths_sat:
         level_widths_sat.write(" Transition register \t index sorted \t  Shell \t Configuration \t 2JJ \t eigenvalue \t radiative width [s-1] \t  total width [s-1] \t total width [eV] \n")
         
         for counter, state_i in enumerate(rate_level_sat):
@@ -2685,7 +4267,7 @@ def calculateSpectra(radiative_done, auger_done, satellite_done):
     
     print("############ Writing satellite spectrum ###################\n")
     
-    with open(file_rates_spectrum_sat, "w") as spectrum_sat:
+    with open(file_rates_spectrum_shakeoff, "w") as spectrum_sat:
         spectrum_sat.write("Transition register \t Shell IS \t IS Configuration \t IS 2JJ \t IS eigenvalue \t IS higher configuration \t IS percentage \t Shell FS \tFS Configuration \t FS 2JJ \t FS eigenvalue \t FS higher configuration \t FS percentage \t transition energy [eV] \t intensity \t intensity [eV] \t width [eV] \n")
 	
         combCnt = 0
@@ -2728,7 +4310,9 @@ def calculateSpectra(radiative_done, auger_done, satellite_done):
 
 
 def GetParameters():
-    global radiative_by_hand, auger_by_hand
+    global radiative_by_hand, auger_by_hand, sat_auger_by_hand, shakeup_by_hand
+    
+    # Get the parameters from 1 hole states
     
     initial_radiative = radiative_by_hand[:]
     
@@ -2754,6 +4338,8 @@ def GetParameters():
     writeResults1hole(True)
     
     
+    # Get the parameters from 2 hole states
+    
     initial_auger = auger_by_hand[:]
     
     deleted_auger = 0
@@ -2776,6 +4362,58 @@ def GetParameters():
         print("\n\nAll 2 hole states have converged!\n")
     
     writeResults2holes(True)
+    
+    
+    # Get the parameters from 3 hole states
+    if calculate_3holes:
+        initial_sat_auger = sat_auger_by_hand[:]
+        
+        deleted_sat_auger = 0
+        for j, counter in enumerate(initial_sat_auger):
+            i, jj, eigv = calculated3holesStates[counter][0]
+            
+            currDir = rootDir + "/" + directory_name + "/3holes/" + shell_array_3holes[i] + "/2jj_" + str(jj) + "/eigv_" + str(eigv)
+            currFileName = shell_array_3holes[i] + "_" + str(jj) + "_" + str(eigv)
+            
+            converged, failed_orbital, overlap, higher_config, highest_percent, accuracy, Diff, welt = checkOutput(currDir, currFileName)
+            
+            calculated3holesStates[counter][-1] = (higher_config, highest_percent, overlap, accuracy, Diff, welt)
+            
+            if converged and Diff >= 0.0 and Diff <= diffThreshold and overlap < overlapsThreshold:
+                del sat_auger_by_hand[j - deleted_sat_auger]
+                deleted_sat_auger += 1
+        
+        
+        if len(sat_auger_by_hand) == 0:
+            print("\n\nAll 3 hole states have converged!\n")
+        
+        writeResults3holes(True)
+    
+    
+    # Get the parameters from shake-up states
+    if calculate_shakeup:
+        initial_shakeup = shakeup_by_hand[:]
+        
+        deleted_shakeup = 0
+        for j, counter in enumerate(initial_shakeup):
+            i, jj, eigv = calculatedShakeupStates[counter][0]
+            
+            currDir = rootDir + "/" + directory_name + "/shakeup/" + shell_array_shakeup[i] + "/2jj_" + str(jj) + "/eigv_" + str(eigv)
+            currFileName = shell_array_shakeup[i] + "_" + str(jj) + "_" + str(eigv)
+            
+            converged, failed_orbital, overlap, higher_config, highest_percent, accuracy, Diff, welt = checkOutput(currDir, currFileName)
+            
+            calculatedShakeupStates[counter][-1] = (higher_config, highest_percent, overlap, accuracy, Diff, welt)
+            
+            if converged and Diff >= 0.0 and Diff <= diffThreshold and overlap < overlapsThreshold:
+                del shakeup_by_hand[j - deleted_shakeup]
+                deleted_shakeup += 1
+        
+        
+        if len(shakeup_by_hand) == 0:
+            print("\n\nAll shake-up states have converged!\n")
+        
+        writeResultsShakeup(True)
     
 
 def loadParameters():
@@ -2803,6 +4441,34 @@ def loadParameters():
         calculated2holesStates[counter].append((higher_config, highest_percent, overlap, accuracy, Diff, welt))
     
     print("\nLoaded 2 holes states parameters.\n")
+    
+    
+    if calculate_3holes:
+        for counter, state in enumerate(calculated3holesStates):
+            i, jj, eigv = state[0]
+            
+            currDir = rootDir + "/" + directory_name + "/3holes/" + shell_array_3holes[i] + "/2jj_" + str(jj) + "/eigv_" + str(eigv)
+            currFileName = shell_array_3holes[i] + "_" + str(jj) + "_" + str(eigv)
+            
+            converged, failed_orbital, overlap, higher_config, highest_percent, accuracy, Diff, welt = checkOutput(currDir, currFileName)
+            
+            calculated3holesStates[counter].append((higher_config, highest_percent, overlap, accuracy, Diff, welt))
+        
+        print("\nLoaded 3 holes states parameters.\n")
+    
+    
+    if calculate_shakeup:
+        for counter, state in enumerate(calculatedShakeupStates):
+            i, jj, eigv = state[0]
+            
+            currDir = rootDir + "/" + directory_name + "/shakeup/" + shell_array_shakeup[i] + "/2jj_" + str(jj) + "/eigv_" + str(eigv)
+            currFileName = shell_array_shakeup[i] + "_" + str(jj) + "_" + str(eigv)
+            
+            converged, failed_orbital, overlap, higher_config, highest_percent, accuracy, Diff, welt = checkOutput(currDir, currFileName)
+            
+            calculatedShakeupStates[counter].append((higher_config, highest_percent, overlap, accuracy, Diff, welt))
+        
+        print("\nLoaded shake-up states parameters.\n")
     
 
 
@@ -2936,95 +4602,116 @@ def initializeEnergyCalc():
 
 
 def setupElectronConfigs():
-    global lines_conf, arr_conf, nb_lines_conf, lines_fir, arr_fir, nb_lines_fir, final_configuration, shell_array, configuration_string
-    global configuration_1hole, configuration_2holes, shell_array_2holes, nelectrons
-    
+    global lines_conf, arr_conf, nb_lines_conf, lines_fir, arr_fir, nb_lines_fir, final_configuration, configuration_string, nelectrons
+    global configuration_1hole, shell_array
+    global configuration_2holes, shell_array_2holes
+    global configuration_3holes, shell_array_3holes
+    global configuration_shakeup, shell_array_shakeup
+    global exist_3holes, exist_shakeup, calculate_3holes, calculate_shakeup
+
     count = 0
     
     if label_auto:
-        with open('Conf.csv', 'r') as f:
-            lines_conf = f.readlines()
-
         enum = int(atomic_number) - 1
-        arr_conf = [int(x) for x in lines_conf[enum].strip().split(',')]
-        nb_lines_conf = len(lines_conf)
-
-        with open('Fir.csv', 'r') as f:
-            lines_fir = f.readlines()
-
-        arr_fir = [int(x) for x in lines_fir[enum].strip().split(',')]
-        nb_lines_fir = len(lines_fir)
-
-        final_configuration = []
-        shell_array = []
-        for i in range(len(arr_conf)):
-            if arr_conf[i] != 0:
-                final_configuration.append(arr_conf[i])
-                shell_array.append(shells[i])
-                count += 1
-
-
-        count_au = 0
-
-        configuration_string = ''
-        for j in range(count):
-            configuration_string += "(" + shell_array[j] + ")" + str(final_configuration[j]) + " "
         
-            b = final_configuration[:]
-            b[j] = b[j] - 1
+        # Initialize the array of shells and electron number
+        remain_elec = enum
+        electron_array = []
+        
+        i = 0
+        while remain_elec > 0:
+            shell_array.append(shells[i])
             
-            configuration_1hole.append('')
-            
-            if count <= 10:
-                for g in range(count):
-                    configuration_1hole[j] += "(" + shell_array[g] + ")" + str(b[g]) + " "
-                
+            if remain_elec >= electronspershell[i]:
+                configuration_string += "(" + shell_array[i] + ")" + str(electronspershell[i]) + " "
+                electron_array.append(electronspershell[i])
             else:
-                for g in range(9):
-                    configuration_1hole[j] += "(" + shell_array[g] + ")" + str(b[g]) + " "
-                
-                configuration_1hole[j]+="\\\n    "
-                for g in range(9, count):
-                    configuration_1hole[j] += "(" + shell_array[g] + ")" + str(b[g]) + " "
-                
+                configuration_string += "(" + shell_array[i] + ")" + str(remain_elec) + " "
+                electron_array.append(remain_elec)
             
-            b = final_configuration[:]
-            b[j] = b[j] - 1
-
-            if b[j] > 0:
-                for k in range(j, count):
-                    if b[k] > 0:
-                        b = final_configuration[:]
+            remain_elec -= electronspershell[i]
+            i += 1
+        
+        exist_3holes = True
+        exist_shakeup = True
+        
+        for i in range(len(shell_array)):
+            # Generate the combinations of 1 hole configurations
+            b = electron_array[:]
+            b[i] -= 1
+            
+            if b[i] >= 0:
+                configuration_1hole.append('')
+                
+                for j in range(len(shell_array)):
+                    configuration_1hole[-1] += "(" + shell_array[j] + ")" + str(b[j]) + " "
+                    
+                    if j >= i:
+                        # Generate the combinations of 2 hole configurations                        
+                        b[j] -= 1
                         
-                        b[j] = b[j]-1
-                        b[k] = b[k]-1
-                        
-                        configuration_2holes.append('')
-                        
-                        if count <= 10:
-                            for g in range(count):
-                                configuration_2holes[count_au] += "(" + shell_array[g] + ")" + str(b[g]) + " "
+                        if b[j] >= 0:
+                            shell_array_2holes.append(shell_array[i] + "_" + shell_array[j])
+                            configuration_2holes.append('')
                             
-                        else:
-                            for g in range(9):
-                                configuration_2holes[count_au] += "(" + shell_array[g] + ")" + str(b[g]) + " "
+                            for h in range(len(shell_array)):
+                                configuration_2holes[-1] += "(" + shell_array[h] + ")" + str(b[h]) + " "
+                                
+                                if h >= j:
+                                    # Generate the combinations of 3 hole configurations
+                                    b[h] -= 1
+                                    
+                                    if b[h] >= 0:
+                                        shell_array_3holes.append(shell_array[i] + "_" + shell_array[j] + "_" + shell_array[h])
+                                        configuration_3holes.append('')
+                                        
+                                        for k in range(len(shell_array)):
+                                            configuration_3holes[-1] += "(" + shell_array[k] + ")" + str(b[k]) + " "
+                                    
+                                    b[h] += 1
                             
-                            configuration_2holes[count_au] += "\\\n    "
-                            
-                            for g in range(9, count):
-                                configuration_2holes[count_au] += "(" + shell_array[g] + ")" + str(b[g]) + " "
-                            
-                        
-                        shell_array_2holes[count_au] = shell_array[k] + "_" + shell_array[j]
-                        
-                        count_au += 1
+                            for h in range(len(shells)):
+                                if h >= j:
+                                    # Generate the combinations of shake-up configurations
+                                    if h < len(shell_array):
+                                        b[h] += 1
+                                    
+                                    if b[h] <= electronspershell[h]:
+                                        shell_array_shakeup.append(shell_array[i] + "_" + shell_array[j] + "-" + shell_array[h])
+                                        configuration_shakeup.append('')
+                                        
+                                        for k, shell in enumerate(shells):
+                                            if k < len(shell_array):
+                                                configuration_shakeup[-1] += "(" + shell_array[k] + ")" + str(b[k]) + " "
+                                            elif h == k:
+                                                configuration_shakeup[-1] += "(" + shell + ")1"
+                                            
+        
         
         nelectrons = str(enum)
         
         print("Element Z=" + atomic_number + "\n")
         print("Atom ground-state Neutral configuration:\n" + configuration_string + "\n")
         print("Number of occupied orbitals = " + str(count) + "\n")
+        
+        print("\nBoth 3 hole configurations and shake-up configurations were generated.\n")
+        print "Would you like to calculate these configurations? - both, 3holes or shakeup : ",
+        inp = raw_input().strip()
+        while inp != 'both' or inp != '3holes' or inp != 'shakeup':
+            print("\n keyword must be both, 3holes or shakeup!!!")
+            print "Would you like to calculate this configurations? - both, 3holes or shakeup : ",
+            inp = raw_input().strip()
+        
+        if inp == 'both':
+            calculate_3holes = True
+            calculate_shakeup = True
+        elif inp == '3holes':
+            calculate_3holes = True
+        elif inp == 'shakeup':
+            calculate_shakeup = True
     else:
+        # Check if the files with the configurations for 1 and 2 holes to be read exist
+        
         if os.path.exists(file_conf_rad) and os.path.exists(file_conf_aug):
             configuration_1hole = []
             shell_array = []
@@ -3113,12 +4800,151 @@ def setupElectronConfigs():
                     print("\nnumber of electrons must be an integer!!!")
                     print "Enter number of electrons : ",
                     nelectrons = raw_input().strip()
-            
         else:
             print("Configuration files do not exist !!! Place them alongside this script and name them:")
             print(file_conf_rad)
             print(file_conf_aug)
             sys.exit(1)
+        
+        
+        # Check if the files with the configurations for 3 holes to be read exist
+        
+        if os.path.exists(file_conf_sat_aug):
+            exist_3holes = True
+            
+            configuration_3holes = []
+            shell_array = []
+            
+            with open(file_conf_sat_aug, "r") as f:
+                for line in f:
+                    colum1, colum2 = line.strip().split(",")
+                    configuration_3holes.append(colum1)
+                    shell_array_3holes.append(colum2)
+                    count += 1
+            
+            electrons = []
+            
+            for config in configuration_3holes:
+                electrons.append(0)
+                
+                shells = config.split()
+                for shell in shells:
+                    res = re.split('(\d+)', shell)
+                    electrons[-1] += int(res[-2])
+            
+            for i, elec in enumerate(electrons[1:]):
+                if elec - electrons[0] != 0:
+                    print("Error: Unsuported varying number of electrons between 3 hole configurations.")
+                    print("Electrons for configuration: " + configuration_3holes[i + 1] + "; were " + str(elec) + ", expected: " + str(electrons[0]))
+                    print("Stopping...")
+                    sys.exit(1)
+            
+            elec_3holes = electrons[0]
+            
+            if elec_2holes != elec_3holes + 1:
+                print("The number of electrons for 2 hole configurations have to be 1 more than for 3 holes configurations.")
+                print("Number of electrons for 3 hole: " + str(elec_3holes) + "; 2 holes: " + str(elec_2holes))
+                print("Stopping...")
+                sys.exit(1)
+            
+            print("Configuration file correctly loaded for 3 hole configurations !!!\n")
+            shutil.copyfile(file_conf_sat_aug, directory_name + "/backup_" + file_conf_sat_aug)
+            
+            print("backup of configuration file can be found at " + directory_name + "/backup_" + file_conf_sat_aug + " !!!\n")
+        else:
+            print("Configuration files do not exist for 3 holes !!! If you wish to calculate them, place the file alongside this script and name them:")
+            print(file_conf_sat_aug)
+        
+        
+        # Check if the files with the configurations for shakeup to be read exist
+        
+        if os.path.exists(file_conf_shakeup):
+            exist_shakeup = True
+            
+            configuration_shakeup = []
+            shell_array_shakeup = []
+            
+            with open(file_conf_shakeup, "r") as f:
+                for line in f:
+                    colum1, colum2 = line.strip().split(",")
+                    configuration_shakeup.append(colum1)
+                    shell_array_shakeup.append(colum2)
+            
+            electrons = []
+            
+            for config in configuration_shakeup:
+                electrons.append(0)
+                
+                shells = config.split()
+                for shell in shells:
+                    res = re.split('(\d+)', shell)
+                    electrons[-1] += int(res[-2])
+            
+            for i, elec in enumerate(electrons[1:]):
+                if elec - electrons[0] != 0:
+                    print("Error: Unsuported varying number of electrons between shake-up configurations.")
+                    print("Electrons for configuration: " + configuration_shakeup[i + 1] + "; were " + str(elec) + ", expected: " + str(electrons[0]))
+                    print("Stopping...")
+                    sys.exit(1)
+            
+            elec_shakeup = electrons[0]
+            
+            if elec_shakeup != elec_1hole:
+                print("The number of electrons for shake-up configurations have to be the same as for 1 holes configurations.")
+                print("Number of electrons for shake-up: " + str(elec_shakeup) + "; 1 holes: " + str(elec_1hole))
+                print("Stopping...")
+                sys.exit(1)
+            
+            print("Configuration files correctly loaded !!!\n")
+            shutil.copyfile(file_conf_shakeup, directory_name + "/backup_" + file_conf_shakeup)
+            
+            print("backup of configuration files can be found at " + directory_name + "/backup_" + file_conf_sat_aug + " and " + directory_name + "/backup_" + file_conf_shakeup + " !!!\n")
+        else:
+            print("Configuration files do not exist for shake-up !!! If you wish to calculate them, place the file alongside this script and name them:")
+            print(file_conf_shakeup)
+        
+        
+        # Configure which configurations to calculate
+        
+        if exist_3holes and exist_shakeup:
+            print("\nBoth 3 hole configurations and shake-up configurations exist.\n")
+            print "Would you like to calculate these configurations? - both, 3holes or shakeup : ",
+            inp = raw_input().strip()
+            while inp != 'both' or inp != '3holes' or inp != 'shakeup':
+                print("\n keyword must be both, 3holes or shakeup!!!")
+                print "Would you like to calculate this configurations? - both, 3holes or shakeup : ",
+                inp = raw_input().strip()
+            
+            if inp == 'both':
+                calculate_3holes = True
+                calculate_shakeup = True
+            elif inp == '3holes':
+                calculate_3holes = True
+            elif inp == 'shakeup':
+                calculate_shakeup = True
+        elif exist_3holes:
+            print("\nOnly 3 hole configurations exist.\n")
+            print "Would you like to calculate these configurations? (y or n) : ",
+            inp = raw_input().strip()
+            while inp != 'y' or inp != 'n':
+                print("\n keyword must be y or n!!!")
+                print "Would you like to calculate these configurations? (y or n) : ",
+                inp = raw_input().strip()
+            
+            if inp == 'y':
+                calculate_3holes = True
+        elif exist_shakeup:
+            print("\nOnly shake-up configurations exist.\n")
+            print "Would you like to calculate these configurations? (y or n) : ",
+            inp = raw_input().strip()
+            while inp != 'y' or inp != 'n':
+                print("\n keyword must be y or n!!!")
+                print "Would you like to calculate these configurations? (y or n) : ",
+                inp = raw_input().strip()
+            
+            if inp == 'y':
+                calculate_shakeup = True
+
 
 
 def setupDirs():
@@ -3129,25 +4955,31 @@ def setupDirs():
 
 
 def setupFiles():
-    global file_cycle_log_1hole, file_cycle_log_2holes
-    global file_sorted_1hole, file_sorted_2holes
-    global file_calculated_radiative, file_calculated_auger, file_calculated_sat
+    global file_cycle_log_1hole, file_cycle_log_2holes, file_cycle_log_3holes, file_cycle_log_shakeup
+    global file_sorted_1hole, file_sorted_2holes, file_sorted_3holes, file_sorted_shakeup
+    global file_calculated_radiative, file_calculated_auger, file_calculated_shakeoff, file_calculated_shakeup
     global file_parameters, file_results, file_final_results
-    global file_final_results_1hole, file_final_results_2holes
-    global file_rates, file_rates_auger, file_rates_satellites
-    global file_rates_spectrum_diagram, file_rates_spectrum_auger, file_level_widths, file_rates_sums
-    global file_rates_sums_sat, file_level_widths_sat, file_rates_spectrum_sat
+    global file_final_results_1hole, file_final_results_2holes, file_final_results_3holes, file_final_results_shakeup
+    global file_rates, file_rates_auger, file_rates_shakeoff, file_rates_shakeup
+    global file_rates_spectrum_diagram, file_rates_spectrum_auger, file_rates_spectrum_shakeoff, file_rates_spectrum_shakeup
+    global file_rates_sums, file_rates_sums_shakeoff, file_rates_sums_shakeup
+    global file_level_widths, file_level_widths_shakeoff, file_level_widths_shakeup
     
     
     file_cycle_log_1hole = rootDir + "/" + directory_name + "/" + directory_name + "_1hole_states_log.txt"
     file_cycle_log_2holes = rootDir + "/" + directory_name + "/" + directory_name + "_2holes_states_log.txt"
+    file_cycle_log_3holes = rootDir + "/" + directory_name + "/" + directory_name + "_3holes_states_log.txt"
+    file_cycle_log_shakeup = rootDir + "/" + directory_name + "/" + directory_name + "_shakeup_states_log.txt"
     
     file_sorted_1hole = rootDir + "/" + directory_name + "/" + directory_name + "_1hole_sorted.txt"
     file_sorted_2holes = rootDir + "/" + directory_name + "/" + directory_name + "_2holes_sorted.txt"
+    file_sorted_3holes = rootDir + "/" + directory_name + "/" + directory_name + "_3holes_sorted.txt"
+    file_sorted_shakeup = rootDir + "/" + directory_name + "/" + directory_name + "_shakeup_sorted.txt"
     
     file_calculated_radiative = rootDir + "/" + directory_name + "/" + directory_name + "_radiative_calculated.txt"
     file_calculated_auger = rootDir + "/" + directory_name + "/" + directory_name + "_auger_calculated.txt"
-    file_calculated_sat = rootDir + "/" + directory_name + "/" + directory_name + "_sat_calculated.txt"
+    file_calculated_shakeoff = rootDir + "/" + directory_name + "/" + directory_name + "_shakeoff_calculated.txt"
+    file_calculated_shakeup = rootDir + "/" + directory_name + "/" + directory_name + "_shakeup_calculated.txt"
     
     file_parameters = rootDir + "/" + directory_name + "/calculation_parameters.txt"
     file_results = rootDir + "/" + directory_name + "/" + directory_name + "_results_all_cicles.txt"
@@ -3155,25 +4987,38 @@ def setupFiles():
 
     file_final_results_1hole = rootDir + "/" + directory_name + "/" + directory_name + "_results_energy_single_configuration_1hole.txt"
     file_final_results_2holes = rootDir + "/" + directory_name + "/" + directory_name + "_results_energy_single_configuration_2holes.txt"
+    file_final_results_3holes = rootDir + "/" + directory_name + "/" + directory_name + "_results_energy_single_configuration_3holes.txt"
+    file_final_results_shakeup = rootDir + "/" + directory_name + "/" + directory_name + "_results_energy_single_configuration_shakeup.txt"
 
     file_rates = rootDir + "/" + directory_name + "/" + directory_name + "_rates_radiative.txt"
     file_rates_auger = rootDir + "/" + directory_name + "/" + directory_name + "_rates_auger.txt"
-    file_rates_satellites = rootDir + "/" + directory_name + "/" + directory_name + "_rates_satellites.txt"
+    file_rates_shakeoff = rootDir + "/" + directory_name + "/" + directory_name + "_rates_shakeoff.txt"
+    file_rates_shakeup = rootDir + "/" + directory_name + "/" + directory_name + "_rates_shakeup.txt"
     
     file_rates_spectrum_diagram = rootDir + "/" + directory_name + "/" + directory_name + "_spectrum_diagram.txt"
     file_rates_spectrum_auger = rootDir + "/" + directory_name + "/" + directory_name + "_spectrum_auger.txt"
-    file_level_widths = rootDir + "/" + directory_name + "/" + directory_name + "_level_widths.txt"
+    file_rates_spectrum_shakeoff = rootDir + "/" + directory_name + "/" + directory_name + "_spectrum_shakeoff.txt"
+    file_rates_spectrum_shakeup = rootDir + "/" + directory_name + "/" + directory_name + "_spectrum_shakeup.txt"
+    
     file_rates_sums = rootDir + "/" + directory_name + "/" + directory_name + "_rates_sums.txt" 
+    file_rates_sums_shakeoff = rootDir + "/" + directory_name + "/" + directory_name + "_rates_sums_shakeoff.txt" 
+    file_rates_sums_shakeup = rootDir + "/" + directory_name + "/" + directory_name + "_rates_sums_shakeup.txt" 
 
-    file_rates_sums_sat = rootDir + "/" + directory_name + "/" + directory_name + "_rates_sums_sat.txt" 
-    file_level_widths_sat = rootDir + "/" + directory_name + "/" + directory_name + "_level_widths_sat.txt"
-    file_rates_spectrum_sat = rootDir + "/" + directory_name + "/" + directory_name + "_spectrum_sat.txt"
+    file_level_widths = rootDir + "/" + directory_name + "/" + directory_name + "_level_widths.txt"
+    file_level_widths_shakeoff = rootDir + "/" + directory_name + "/" + directory_name + "_level_widths_shakeoff.txt"
+    file_level_widths_shakeup = rootDir + "/" + directory_name + "/" + directory_name + "_level_widths_shakeup.txt"
 
 
 def writeCalculationParameters():
     with open(file_parameters, 'w') as fp:
         fp.write("########################################## Output of the calculation parameters ##########################################################\n\n")
         fp.write("Electron configurations are: " + ("read" if not label_auto else "automatic") + "\n")
+        
+        if calculate_3holes:
+            fp.write("3 hole configurations are being calculated!\n")
+        if calculate_shakeup:
+            fp.write("Shake-up configurations are being calculated!\n")
+        
         fp.write("Atomic number Z= " + atomic_number + "\n")
         fp.write("Number of electrons: " + nelectrons + "\n")
         fp.write("Calculations performed with standard mass: " + nuc_massyorn + "\n")
@@ -3395,6 +5240,10 @@ if __name__ == "__main__":
     if not partial:
         calculate1holeStates()
         calculate2holesStates()
+        if calculate_3holes:
+            calculate3holesStates()
+        if calculate_shakeup:
+            calculateShakeupStates()
         
         type_calc = midPrompt()
     elif redo_energy_calc:
