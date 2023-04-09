@@ -1086,7 +1086,7 @@ def checkPartial():
         if not any(log_flags):
             print("\n Error while reading the state log files!!!")
             
-            return complete_1hole, complete_2holes, complete_3holes, complete_shakeup, \
+            return 1, complete_1hole, complete_2holes, complete_3holes, complete_shakeup, \
                     last_calculated_cycle_1hole, last_calculated_cycle_2holes, last_calculated_cycle_3holes, last_calculated_cycle_shakeup, \
                     last_calculated_state_1hole, last_calculated_state_2holes, last_calculated_state_3holes, last_calculated_state_shakeup
         
@@ -5278,15 +5278,21 @@ if __name__ == "__main__":
     redo_rad = False
     redo_aug = False
     redo_sat = False
+    redo_shakeup = False
+    redo_sat_aug = False
     
     partial_rad = False
     partial_aug = False
     partial_sat = False
+    partial_shakeup = False
+    partial_sat_aug = False
     
     
     radiative_done = False
     auger_done = False
     satellite_done = False
+    shakeup_done = False
+    sat_aug_done = False
     
     
     if not partial:
@@ -5300,46 +5306,224 @@ if __name__ == "__main__":
     else:
         flags = checkPartial()
         
+        # List of return flags possible and their meaning
+            # Return 1 to flag that we can proceed with the calculation from the current log cycles and start with sorting them
+            # return 1
+        
+            # Return 2 to flag that we can proceed with the calculation from the current sorted states list and start calculating the transitions
+            # return 2
+            
+            # Default case
+            # return -1
+            
+            # All log flags shoud be valid, if not then we need to pick up the calculation from where it was stopped
+            # In this case the first element is 1 to flag that all states are to be recalculation from where it stopped previously
+            # return 1, complete_1hole, complete_2holes, complete_3holes, complete_shakeup, \
+            #        last_calculated_cycle_1hole, last_calculated_cycle_2holes, last_calculated_cycle_3holes, last_calculated_cycle_shakeup, \
+            #        last_calculated_state_1hole, last_calculated_state_2holes, last_calculated_state_3holes, last_calculated_state_shakeup
+        
+            # The first 3 log flags shoud be valid, if not then we need to pick up the calculation from where it was stopped
+            # In this case the first element is 2 to flag that the first 3 types of states are to be recalculation from where it stopped previously
+            # return 2, complete_1hole, complete_2holes, complete_3holes, \
+            #        last_calculated_cycle_1hole, last_calculated_cycle_2holes, last_calculated_cycle_3holes, \
+            #        last_calculated_state_1hole, last_calculated_state_2holes, last_calculated_state_3holes
+        
+            # The first 2 and last log flags shoud be valid, if not then we need to pick up the calculation from where it was stopped
+            # In this case the first element is 3 to flag that the first 2 and last types of states are to be recalculation from where it stopped previously
+            # return 3, complete_1hole, complete_2holes, complete_shakeup, \
+            #        last_calculated_cycle_1hole, last_calculated_cycle_2holes, last_calculated_cycle_shakeup, \
+            #        last_calculated_state_1hole, last_calculated_state_2holes, last_calculated_state_shakeup
+            
+            # The first 2 log flags shoud be valid, if not then we need to pick up the calculation from where it was stopped
+            # In this case the first element is 4 to flag that the first 2 types of states are to be recalculated from where it stopped previously
+            # return 4, complete_1hole, complete_2holes, \
+            #        last_calculated_cycle_1hole, last_calculated_cycle_2holes, \
+            #        last_calculated_state_1hole, last_calculated_state_2holes
+            
+            # Return the flags for the states that need to be resorted
+            # In this case the first element is 5 to flag that all type of states are to be potentially resorted
+            # return 5, complete_sorted_1hole, complete_sorted_2holes, complete_sorted_3holes, complete_sorted_shakeup
+            
+            # Return the flags for the states that need to be resorted
+            # In this case the first element is 6 to flag that the first 3 types of states are to be potentially resorted
+            # return 6, complete_sorted_1hole, complete_sorted_2holes, complete_sorted_3holes
+            
+            # Return the flags for the states that need to be resorted
+            # In this case the first element is 7 to flag that the first 2 and last types of states are to be potentially resorted
+            # return 7, complete_sorted_1hole, complete_sorted_2holes, complete_sorted_shakeup
+            
+            # Return the flags for the states that need to be resorted
+            # In this case the first element is 8 to flag that the first 2 types of states are to be potentially resorted
+            # return 8, complete_sorted_1hole, complete_sorted_2holes
+            
+            # Return the flags for the transitions that might need to be recalculated
+            # In this case the first element is 1 to flag that all type of transitions are to be potentially recalculated
+            # return 1, last_rad_calculated, last_aug_calculated, last_shakeoff_calculated, last_sat_auger_calculated, last_shakeup_calculated
+            
+            # Return the flags for the transitions that might need to be recalculated
+            # In this case the first element is 2 to flag that the first 4 type of transitions are to be potentially recalculated
+            # return 2, last_rad_calculated, last_aug_calculated, last_shakeoff_calculated, last_sat_auger_calculated
+            
+            # Return the flags for the transitions that might need to be recalculated
+            # In this case the first element is 3 to flag that the first 4 type of transitions are to be potentially recalculated
+            # return 3, last_rad_calculated, last_aug_calculated, last_shakeoff_calculated, last_shakeup_calculated
+            
+            # Return the flags for the transitions that might need to be recalculated
+            # In this case the first element is 4 to flag that the first 2 type of transitions are to be potentially recalculated
+            # return 4, last_rad_calculated, last_aug_calculated
+        
         if type(flags) == type(0):
             if flags == 1:
-                partial = False
-            elif flags == 2:
+                # 1 flags that we can proceed with the calculation from the current log cycles and start with sorting them
+                # This does not require more configuration, we just need to load the parameters from the states in the list
                 loadParameters()
-            elif flags == 3:
+            elif flags == 2:
+                # 2 flags that we can proceed with the calculation from the current sorted states list and start calculating the transitions
+                # We only need to set resort to false. The parameters have already been read in the checkPartial
                 resort = False
+            elif flags == -1:
+                # Default case. We revert to full calculation
+                partial = False
         else:
-            if len(flags) > 3:
+            if flags[0] == 1 and len(flags) > 7:
                 redo_energy_calc = True
                 
-                complete_1hole, complete_2holes, last_calculated_cycle_1hole, last_calculated_cycle_2holes, last_calculated_state_1hole, last_calculated_state_2holes = flags
-            elif len(flags) == 3:
+                _, complete_1hole, complete_2holes, complete_3holes, complete_shakeup, \
+                last_calculated_cycle_1hole, last_calculated_cycle_2holes, last_calculated_cycle_3holes, last_calculated_cycle_shakeup, \
+                last_calculated_state_1hole, last_calculated_state_2holes, last_calculated_state_3holes, last_calculated_state_shakeup = flags
+            elif flags[0] == 2 and len(flags) > 6:
+                redo_energy_calc = True
+                
+                _, complete_1hole, complete_2holes, complete_3holes, \
+                last_calculated_cycle_1hole, last_calculated_cycle_2holes, last_calculated_cycle_3holes, \
+                last_calculated_state_1hole, last_calculated_state_2holes, last_calculated_state_3holes = flags
+            elif flags[0] == 3 and len(flags) > 6:
+                redo_energy_calc = True
+                
+                _, complete_1hole, complete_2holes, complete_shakeup, \
+                last_calculated_cycle_1hole, last_calculated_cycle_2holes, last_calculated_cycle_shakeup, \
+                last_calculated_state_1hole, last_calculated_state_2holes, last_calculated_state_shakeup = flags
+            elif flags[0] == 4 and len(flags) > 4:
+                redo_energy_calc = True
+                
+                _, complete_1hole, complete_2holes, \
+                last_calculated_cycle_1hole, last_calculated_cycle_2holes, \
+                last_calculated_state_1hole, last_calculated_state_2holes = flags
+            elif flags[0] == 1 and len(flags) < 7:
                 resort = False
                 redo_transitions = True
                 
-                last_rad_calculated, last_aug_calculated, last_sat_calculated = flags
+                _, last_rad_calculated, last_aug_calculated, last_shakeoff_calculated, last_sat_auger_calculated, last_shakeup_calculated = flags
                 
-                if type(last_rad_calculated) == type(True):
-                    if not last_rad_calculated:
-                        redo_rad = True
-                    else:
-                        radiative_done = True
+                if type(last_rad_calculated) == type(False):
+                    redo_rad = True
                 else:
                     partial_rad = True
-                if type(last_aug_calculated) == type(True):
-                    if not last_aug_calculated:
-                        redo_aug = True
-                    else:
-                        auger_done = True
+                
+                if type(last_aug_calculated) == type(False):
+                    redo_aug = True
                 else:
                     partial_aug = True
-                if type(last_sat_calculated) == type(True):
-                    if not last_sat_calculated:
-                        redo_sat = True
-                    else:
-                        satellite_done = True
+                
+                if type(last_shakeoff_calculated) == type(False):
+                    redo_sat = True
                 else:
                     partial_sat = True
-    
+                
+                if type(last_sat_auger_calculated) == type(False):
+                    redo_sat_aug = True
+                else:
+                    partial_sat_aug = True
+                
+                if type(last_shakeup_calculated) == type(False):
+                    redo_shakeup = True
+                else:
+                    partial_shakeup = True
+            elif flags[0] == 2 and len(flags) < 6:
+                resort = False
+                redo_transitions = True
+                
+                _, last_rad_calculated, last_aug_calculated, last_shakeoff_calculated, last_sat_auger_calculated = flags
+                
+                if type(last_rad_calculated) == type(False):
+                    redo_rad = True
+                else:
+                    partial_rad = True
+                
+                if type(last_aug_calculated) == type(False):
+                    redo_aug = True
+                else:
+                    partial_aug = True
+                
+                if type(last_shakeoff_calculated) == type(False):
+                    redo_sat = True
+                else:
+                    partial_sat = True
+                
+                if type(last_sat_auger_calculated) == type(False):
+                    redo_shakeup = True
+                else:
+                    partial_shakeup = True
+            elif flags[0] == 3 and len(flags) < 6:
+                resort = False
+                redo_transitions = True
+                
+                _, last_rad_calculated, last_aug_calculated, last_shakeoff_calculated, last_shakeup_calculated = flags
+                
+                if type(last_rad_calculated) == type(False):
+                    redo_rad = True
+                else:
+                    partial_rad = True
+                
+                if type(last_aug_calculated) == type(False):
+                    redo_aug = True
+                else:
+                    partial_aug = True
+                
+                if type(last_shakeoff_calculated) == type(False):
+                    redo_sat = True
+                else:
+                    partial_sat = True
+                
+                if type(last_shakeup_calculated) == type(False):
+                    redo_shakeup = True
+                else:
+                    partial_shakeup = True
+            elif flags[0] == 4 and len(flags) < 4:
+                resort = False
+                redo_transitions = True
+                
+                _, last_rad_calculated, last_aug_calculated = flags
+                
+                if type(last_rad_calculated) == type(False):
+                    redo_rad = True
+                else:
+                    partial_rad = True
+                
+                if type(last_aug_calculated) == type(False):
+                    redo_aug = True
+                else:
+                    partial_aug = True
+            elif flags[0] == 5:
+                resort = False
+                
+                _, complete_sorted_1hole, complete_sorted_2holes, complete_sorted_3holes, complete_sorted_shakeup = flags
+            elif flags[0] == 6:
+                resort = False
+                
+                _, complete_sorted_1hole, complete_sorted_2holes, complete_sorted_3holes = flags
+            elif flags[0] == 7:
+                resort = False
+                
+                _, complete_sorted_1hole, complete_sorted_2holes, complete_sorted_shakeup = flags
+            elif flags[0] == 8:
+                resort = False
+                
+                _, complete_sorted_1hole, complete_sorted_2holes = flags
+            else:
+                print("\nError unexpected partial flags were returned. Stopping...")
+                sys.exit(1)
+
     
     setupTemplates()
     
@@ -5359,6 +5543,10 @@ if __name__ == "__main__":
             calculate1holeStates(last_calculated_cycle_1hole, last_calculated_state_1hole)
         if not complete_2holes:
             calculate2holesStates(last_calculated_cycle_2holes, last_calculated_state_2holes)
+        if not complete_3holes and calculate_3holes:
+            calculate3holesStates(last_calculated_cycle_3holes, last_calculated_state_3holes)
+        if not complete_shakeup and calculate_shakeup:
+            calculateShakeupStates(last_calculated_cycle_shakeup, last_calculated_state_shakeup)
     
     
     if resort:
@@ -5400,8 +5588,22 @@ if __name__ == "__main__":
             elif partial_sat:
                 rates_satellite(last_sat_calculated)
                 satellite_done = True
+            
+            if redo_sat_aug:
+                rates_satellite_auger()
+                sat_aug_done = True
+            elif partial_sat_aug:
+                rates_satellite_auger(last_sat_auger_calculated)
+                sat_aug_done = True
+            
+            if redo_shakeup:
+                rates_shakeup()
+                shakeup_done = True
+            elif partial_shakeup:
+                rates_shakeup(last_shakeup_calculated)
+                shakeup_done = True
        
        
     
     if type_calc == "All" or type_calc == "Simple":
-        calculateSpectra(radiative_done, auger_done, satellite_done)
+        calculateSpectra(radiative_done, auger_done, satellite_done, sat_aug_done, shakeup_done)
