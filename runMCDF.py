@@ -95,6 +95,7 @@ file_calculated_radiative = ''
 file_calculated_auger = ''
 file_calculated_shakeoff = ''
 file_calculated_shakeup = ''
+file_calculated_sat_auger = ''
 
 # File with the general parameters for the calculation
 file_parameters = ''
@@ -112,12 +113,14 @@ file_rates = ''
 file_rates_auger = ''
 file_rates_shakeoff = ''
 file_rates_shakeup = ''
+file_rates_sat_auger = ''
 
 # Files with the calculated diagram, auger, shake-off and shake-up spectra
 file_rates_spectrum_diagram = ''
 file_rates_spectrum_auger = ''
 file_rates_spectrum_shakeoff = ''
 file_rates_spectrum_shakeup = ''
+file_rates_spectrum_sat_auger = ''
 
 # Files with rate sums, used for fluorescence yield determinations
 file_rates_sums = ''
@@ -527,9 +530,7 @@ def checkPartial():
     loadElectronConfigs()
     
     
-    def readStateList():
-        global calculated1holeStates, calculated2holesStates, calculate3holesStates, calculateShakeupStates
-        
+    def readStateList(read_1hole = False, read_2hole = False, read_3hole = False, read_shakeup = False):
         complete_1hole = False
         complete_2holes = False
         complete_3holes = False
@@ -545,7 +546,19 @@ def checkPartial():
         last_calculated_state_3holes = [(0, 0, 0)]
         last_calculated_state_shakeup = [(0, 0, 0)]
         
-        with open(file_cycle_log_1hole, "r") as calculated1hole:
+        if not read_1hole and not read_2hole and not read_3hole and not read_shakeup:
+            print("\n Warning no states are being read in this call!!!")
+            
+            return complete_1hole, complete_2holes, complete_3holes, complete_shakeup, \
+                last_calculated_cycle_1hole, last_calculated_state_1hole, \
+                last_calculated_cycle_2holes, last_calculated_state_2holes, \
+                last_calculated_cycle_3holes, last_calculated_state_3holes, \
+                last_calculated_cycle_shakeup, last_calculated_state_shakeup 
+        
+        if read_1hole:
+            global calculated1holeStates
+            
+            with open(file_cycle_log_1hole, "r") as calculated1hole:
             if "1 hole states discovery done." in calculated1hole.readline():
                 calculated1hole.readline()
                 for line in calculated1hole:
@@ -566,7 +579,11 @@ def checkPartial():
                     if not complete_1hole:
                         calculated1holeStates.append([tuple(int(qn) for qn in line.strip().split(", "))])
         
-        with open(file_cycle_log_2holes, "r") as calculated2holes:
+        
+        if read_2hole:
+            global calculated2holesStates
+            
+            with open(file_cycle_log_2holes, "r") as calculated2holes:
             if "2 holes states discovery done." in calculated2holes.readline():
                 calculated2holes.readline()
                 for line in calculated2holes:
@@ -587,49 +604,62 @@ def checkPartial():
                     if not complete_2holes:
                         calculated2holesStates.append([tuple(int(qn) for qn in line.strip().split(", "))])
         
-        if calculate_3holes:
-            with open(file_cycle_log_3holes, "r") as calculated3holes:
-                if "3 holes states discovery done." in calculated3holes.readline():
-                    calculated3holes.readline()
-                    for line in calculated3holes:
-                        if "ListEnd" in line:
-                            complete_3holes = True
-                        
-                        if "First Cycle Last Calculated:" in line:
-                            last_calculated_cycle_3holes = 1
-                        elif "Second Cycle Last Calculated:" in line:
-                            last_calculated_cycle_3holes = 2
-                        elif "Third Cycle Last Calculated:" in line:
-                            last_calculated_cycle_3holes = 3
-                        elif "Fourth Cycle Last Calculated:" in line or "CalculationFinalized" in line:
-                            last_calculated_cycle_3holes = 4
-                        elif last_calculated_cycle_3holes > 0 and line != "\n":
-                            last_calculated_state_3holes = [tuple(int(qn) for qn in line.strip().split(", "))]
-                        
-                        if not complete_3holes:
-                            calculate3holesStates.append([tuple(int(qn) for qn in line.strip().split(", "))])
         
-        if calculate_shakeup:
-            with open(file_cycle_log_shakeup, "r") as calculatedShakeup:
-                if "shake-up states discovery done." in calculatedShakeup.readline():
-                    calculatedShakeup.readline()
-                    for line in calculatedShakeup:
-                        if "ListEnd" in line:
-                            complete_shakeup = True
-                        
-                        if "First Cycle Last Calculated:" in line:
-                            last_calculated_cycle_shakeup = 1
-                        elif "Second Cycle Last Calculated:" in line:
-                            last_calculated_cycle_shakeup = 2
-                        elif "Third Cycle Last Calculated:" in line:
-                            last_calculated_cycle_shakeup = 3
-                        elif "Fourth Cycle Last Calculated:" in line or "CalculationFinalized" in line:
-                            last_calculated_cycle_shakeup = 4
-                        elif last_calculated_cycle_shakeup > 0 and line != "\n":
-                            last_calculated_state_shakeup = [tuple(int(qn) for qn in line.strip().split(", "))]
-                        
-                        if not complete_shakeup:
-                            calculateShakeupStates.append([tuple(int(qn) for qn in line.strip().split(", "))])
+        if read_3hole:
+            global calculate3holesStates
+            
+            if calculate_3holes:
+                with open(file_cycle_log_3holes, "r") as calculated3holes:
+                    if "3 holes states discovery done." in calculated3holes.readline():
+                        calculated3holes.readline()
+                        for line in calculated3holes:
+                            if "ListEnd" in line:
+                                complete_3holes = True
+                            
+                            if "First Cycle Last Calculated:" in line:
+                                last_calculated_cycle_3holes = 1
+                            elif "Second Cycle Last Calculated:" in line:
+                                last_calculated_cycle_3holes = 2
+                            elif "Third Cycle Last Calculated:" in line:
+                                last_calculated_cycle_3holes = 3
+                            elif "Fourth Cycle Last Calculated:" in line or "CalculationFinalized" in line:
+                                last_calculated_cycle_3holes = 4
+                            elif last_calculated_cycle_3holes > 0 and line != "\n":
+                                last_calculated_state_3holes = [tuple(int(qn) for qn in line.strip().split(", "))]
+                            
+                            if not complete_3holes:
+                                calculate3holesStates.append([tuple(int(qn) for qn in line.strip().split(", "))])
+            else:
+                print("\n Warning reading of the 3 hole states was requested but the calculation was never performed for these!!!")
+        
+        
+        if read_shakeup:
+            global calculateShakeupStates
+            
+            if calculate_shakeup:
+                with open(file_cycle_log_shakeup, "r") as calculatedShakeup:
+                    if "shake-up states discovery done." in calculatedShakeup.readline():
+                        calculatedShakeup.readline()
+                        for line in calculatedShakeup:
+                            if "ListEnd" in line:
+                                complete_shakeup = True
+                            
+                            if "First Cycle Last Calculated:" in line:
+                                last_calculated_cycle_shakeup = 1
+                            elif "Second Cycle Last Calculated:" in line:
+                                last_calculated_cycle_shakeup = 2
+                            elif "Third Cycle Last Calculated:" in line:
+                                last_calculated_cycle_shakeup = 3
+                            elif "Fourth Cycle Last Calculated:" in line or "CalculationFinalized" in line:
+                                last_calculated_cycle_shakeup = 4
+                            elif last_calculated_cycle_shakeup > 0 and line != "\n":
+                                last_calculated_state_shakeup = [tuple(int(qn) for qn in line.strip().split(", "))]
+                            
+                            if not complete_shakeup:
+                                calculateShakeupStates.append([tuple(int(qn) for qn in line.strip().split(", "))])
+            else:
+                print("\n Warning reading of the Shake-up states was requested but the calculation was never performed for these!!!")
+        
         
         return complete_1hole, complete_2holes, complete_3holes, complete_shakeup, \
                 last_calculated_cycle_1hole, last_calculated_state_1hole, \
@@ -638,7 +668,7 @@ def checkPartial():
                 last_calculated_cycle_shakeup, last_calculated_state_shakeup
     
     
-    def readSortedStates():
+    def readSortedStates(read_1hole = False, read_2hole = False, read_3hole = False, read_shakeup = False):
         global calculated1holeStates, calculated2holesStates, calculated3holesStates, calculatedShakeupStates
         
         complete_sorted_1hole = False
@@ -646,114 +676,137 @@ def checkPartial():
         complete_sorted_3holes = False
         complete_sorted_shakeup = False
         
-        with open(file_sorted_1hole, "r") as sorted_1hole:
-            if len(sorted_1hole.readlines()) == len(calculated1holeStates):
-                complete_sorted_1hole = True
-        
-        if complete_sorted_1hole:
+        if read_1hole:
             with open(file_sorted_1hole, "r") as sorted_1hole:
-                calculated1holeStates = []
-                for line in sorted_1hole:
-                    state_nums = tuple(int(qn) for qn in line.strip().split("; ")[0].split(", "))
-                    state_parameters = tuple(par if i == 0 else float(par) for i, par in enumerate(line.strip().split("; ")[1].split(", ")))
-                    calculated1holeStates.append([state_nums, state_parameters])
+                if len(sorted_1hole.readlines()) == len(calculated1holeStates):
+                    complete_sorted_1hole = True
+            
+            if complete_sorted_1hole:
+                with open(file_sorted_1hole, "r") as sorted_1hole:
+                    calculated1holeStates = []
+                    for line in sorted_1hole:
+                        state_nums = tuple(int(qn) for qn in line.strip().split("; ")[0].split(", "))
+                        state_parameters = tuple(par if i == 0 else float(par) for i, par in enumerate(line.strip().split("; ")[1].split(", ")))
+                        calculated1holeStates.append([state_nums, state_parameters])
         
-        with open(file_sorted_2holes, "r") as sorted_2holes:
-            if len(sorted_2holes.readlines()) == len(calculated2holesStates):
-                complete_sorted_2holes = True
-        
-        if complete_sorted_2holes:
+        if read_2hole:
             with open(file_sorted_2holes, "r") as sorted_2holes:
-                calculated2holesStates = []
-                for line in sorted_2holes:
-                    state_nums = tuple(int(qn) for qn in line.strip().split("; ")[0].split(", "))
-                    state_parameters = tuple(par if i == 0 else float(par) for i, par in enumerate(line.strip().split("; ")[1].split(", ")))
-                    calculated2holesStates.append([state_nums, state_parameters])
-        
-        if calculate_3holes:
-            with open(file_sorted_3holes, "r") as sorted_3holes:
-                if len(sorted_3holes.readlines()) == len(calculated3holesStates):
-                    complete_sorted_3holes = True
+                if len(sorted_2holes.readlines()) == len(calculated2holesStates):
+                    complete_sorted_2holes = True
             
-            if complete_sorted_3holes:
+            if complete_sorted_2holes:
+                with open(file_sorted_2holes, "r") as sorted_2holes:
+                    calculated2holesStates = []
+                    for line in sorted_2holes:
+                        state_nums = tuple(int(qn) for qn in line.strip().split("; ")[0].split(", "))
+                        state_parameters = tuple(par if i == 0 else float(par) for i, par in enumerate(line.strip().split("; ")[1].split(", ")))
+                        calculated2holesStates.append([state_nums, state_parameters])
+        
+        if read_3hole:
+            if calculate_3holes:
                 with open(file_sorted_3holes, "r") as sorted_3holes:
-                    calculated3holesStates = []
-                    for line in sorted_3holes:
-                        state_nums = tuple(int(qn) for qn in line.strip().split("; ")[0].split(", "))
-                        state_parameters = tuple(par if i == 0 else float(par) for i, par in enumerate(line.strip().split("; ")[1].split(", ")))
-                        calculated3holesStates.append([state_nums, state_parameters])
+                    if len(sorted_3holes.readlines()) == len(calculated3holesStates):
+                        complete_sorted_3holes = True
+                
+                if complete_sorted_3holes:
+                    with open(file_sorted_3holes, "r") as sorted_3holes:
+                        calculated3holesStates = []
+                        for line in sorted_3holes:
+                            state_nums = tuple(int(qn) for qn in line.strip().split("; ")[0].split(", "))
+                            state_parameters = tuple(par if i == 0 else float(par) for i, par in enumerate(line.strip().split("; ")[1].split(", ")))
+                            calculated3holesStates.append([state_nums, state_parameters])
         
-        if calculate_shakeup:
-            with open(file_sorted_shakeup, "r") as sorted_shakeup:
-                if len(sorted_shakeup.readlines()) == len(calculatedShakeupStates):
-                    complete_sorted_shakeup = True
-            
-            if complete_sorted_shakeup:
+        if read_shakeup:
+            if calculate_shakeup:
                 with open(file_sorted_shakeup, "r") as sorted_shakeup:
-                    calculatedShakeupStates = []
-                    for line in sorted_shakeup:
-                        state_nums = tuple(int(qn) for qn in line.strip().split("; ")[0].split(", "))
-                        state_parameters = tuple(par if i == 0 else float(par) for i, par in enumerate(line.strip().split("; ")[1].split(", ")))
-                        calculatedShakeupStates.append([state_nums, state_parameters])
+                    if len(sorted_shakeup.readlines()) == len(calculatedShakeupStates):
+                        complete_sorted_shakeup = True
+                
+                if complete_sorted_shakeup:
+                    with open(file_sorted_shakeup, "r") as sorted_shakeup:
+                        calculatedShakeupStates = []
+                        for line in sorted_shakeup:
+                            state_nums = tuple(int(qn) for qn in line.strip().split("; ")[0].split(", "))
+                            state_parameters = tuple(par if i == 0 else float(par) for i, par in enumerate(line.strip().split("; ")[1].split(", ")))
+                            calculatedShakeupStates.append([state_nums, state_parameters])
         
         return complete_sorted_1hole, complete_sorted_2holes, complete_sorted_3holes, complete_sorted_shakeup
     
     
-    def readTransitions():
+    def readTransitions(read_rad = False, read_aug = False, read_shakeoff = False, read_sat_aug = False, read_shakeup = False):
         # Radiative transitions
-        if os.path.isfile(file_calculated_radiative):
-            with open(file_calculated_radiative, "r") as rad_calculated:
-                rad_calculated.readline()
-                for line in rad_calculated:
-                    if line != "\n":
-                        state_i = tuple(int(qn) for qn in line.strip().split(" => ")[0].split(", "))
-                        state_f = tuple(int(qn) for qn in line.strip().split(" => ")[1].split(", "))
-                        
-                        last_rad_calculated = [state_i, state_f]
-        else:
-            last_rad_calculated = False
+        if read_rad:
+            if os.path.isfile(file_calculated_radiative):
+                with open(file_calculated_radiative, "r") as rad_calculated:
+                    rad_calculated.readline()
+                    for line in rad_calculated:
+                        if line != "\n":
+                            state_i = tuple(int(qn) for qn in line.strip().split(" => ")[0].split(", "))
+                            state_f = tuple(int(qn) for qn in line.strip().split(" => ")[1].split(", "))
+                            
+                            last_rad_calculated = [state_i, state_f]
+            else:
+                last_rad_calculated = False
         
         # Auger transitions
-        if os.path.isfile(file_calculated_auger):
-            with open(file_calculated_auger, "r") as aug_calculated:
-                aug_calculated.readline()
-                for line in aug_calculated:
-                    if line != "\n":
-                        state_i = tuple(int(qn) for qn in line.strip().split(" => ")[0].split(", "))
-                        state_f = tuple(int(qn) for qn in line.strip().split(" => ")[1].split(", "))
-                        
-                        last_aug_calculated = [state_i, state_f]
-        else:
-            last_aug_calculated = False
+        if read_aug:
+            if os.path.isfile(file_calculated_auger):
+                with open(file_calculated_auger, "r") as aug_calculated:
+                    aug_calculated.readline()
+                    for line in aug_calculated:
+                        if line != "\n":
+                            state_i = tuple(int(qn) for qn in line.strip().split(" => ")[0].split(", "))
+                            state_f = tuple(int(qn) for qn in line.strip().split(" => ")[1].split(", "))
+                            
+                            last_aug_calculated = [state_i, state_f]
+            else:
+                last_aug_calculated = False
         
         # Shake-off transitions
-        if os.path.isfile(file_calculated_shakeoff):
-            with open(file_calculated_shakeoff, "r") as sat_calculated:
-                sat_calculated.readline()
-                for line in sat_calculated:
-                    if line != "\n":
-                        state_i = tuple(int(qn) for qn in line.strip().split(" => ")[0].split(", "))
-                        state_f = tuple(int(qn) for qn in line.strip().split(" => ")[1].split(", "))
-                        
-                        last_sat_calculated = [state_i, state_f]
-        else:
-            last_sat_calculated = False
+        if read_shakeoff:
+            if os.path.isfile(file_calculated_shakeoff):
+                with open(file_calculated_shakeoff, "r") as sat_calculated:
+                    sat_calculated.readline()
+                    for line in sat_calculated:
+                        if line != "\n":
+                            state_i = tuple(int(qn) for qn in line.strip().split(" => ")[0].split(", "))
+                            state_f = tuple(int(qn) for qn in line.strip().split(" => ")[1].split(", "))
+                            
+                            last_sat_calculated = [state_i, state_f]
+            else:
+                last_sat_calculated = False
         
         # Shake-up transitions
-        if os.path.isfile(file_calculated_shakeup):
-            with open(file_calculated_shakeup, "r") as shakeup_calculated:
-                shakeup_calculated.readline()
-                for line in shakeup_calculated:
-                    if line != "\n":
-                        state_i = tuple(int(qn) for qn in line.strip().split(" => ")[0].split(", "))
-                        state_f = tuple(int(qn) for qn in line.strip().split(" => ")[1].split(", "))
-                        
-                        last_shakeup_calculated = [state_i, state_f]
-        else:
-            last_shakeup_calculated = False
+        if read_shakeup:
+            if os.path.isfile(file_calculated_shakeup):
+                with open(file_calculated_shakeup, "r") as shakeup_calculated:
+                    shakeup_calculated.readline()
+                    for line in shakeup_calculated:
+                        if line != "\n":
+                            state_i = tuple(int(qn) for qn in line.strip().split(" => ")[0].split(", "))
+                            state_f = tuple(int(qn) for qn in line.strip().split(" => ")[1].split(", "))
+                            
+                            last_shakeup_calculated = [state_i, state_f]
+            else:
+                last_shakeup_calculated = False
+        
+        # Auger from satellite transitions
+        if read_sat_aug:
+            if os.path.isfile(file_calculated_sat_auger):
+                with open(file_calculated_sat_auger, "r") as sat_auger_calculated:
+                    sat_auger_calculated.readline()
+                    for line in sat_auger_calculated:
+                        if line != "\n":
+                            state_i = tuple(int(qn) for qn in line.strip().split(" => ")[0].split(", "))
+                            state_f = tuple(int(qn) for qn in line.strip().split(" => ")[1].split(", "))
+                            
+                            last_sat_auger_calculated = [state_i, state_f]
+            else:
+                last_sat_auger_calculated = False
         
         
-        return last_rad_calculated, last_aug_calculated, last_sat_calculated, last_shakeup_calculated
+        return last_rad_calculated, last_aug_calculated, last_sat_calculated, last_sat_auger_calculated, last_shakeup_calculated
+    
     
     
     if not os.path.isfile(exe_file):
@@ -762,561 +815,615 @@ def checkPartial():
     else:
         print("\n############## Energy Calculations with MCDGME code  ##############\n\n")
         
-        # Check if any of the files with transitions exist
-        if any([os.path.isfile(file_calculated_radiative), os.path.isfile(file_calculated_auger), os.path.isfile(file_calculated_shakeoff), os.path.isfile(file_calculated_shakeup)]):
-            print("\nFound files with the last calculated transitions.")
-            
-            # Check for consistency if the files with the states logs exist
-            # Only the 1 hole and 2 hole are strictly necessary to continue with calculations
-            if os.path.isfile(file_cycle_log_1hole) and os.path.isfile(file_cycle_log_2holes):
-                print("\nFound file with the list of discovered states.")
-                
-                # Read the state list and get flags to perform some more flow control
-                complete_1hole, complete_2holes, complete_3holes, complete_shakeup, \
-                last_calculated_cycle_1hole, last_calculated_state_1hole, \
-                last_calculated_cycle_2holes, last_calculated_state_2holes, \
-                last_calculated_cycle_3holes, last_calculated_state_3holes, \
-                last_calculated_cycle_shakeup, last_calculated_state_shakeup = readStateList()
-                
-                # If the 3 hole and shake-up configurations are supposed to be calculated
-                if calculate_3holes and calculate_shakeup:
-                    # Check if all state discovery lists are complete
-                    # Also check if the last calculated cycles and states are the expected ones
-                    if complete_1hole and complete_2holes and complete_3holes and complete_shakeup and \
-                        last_calculated_cycle_1hole == 4 and last_calculated_cycle_2holes == 4 and last_calculated_cycle_3holes == 4 and last_calculated_cycle_shakeup == 4 \
-                        last_calculated_state_1hole[0] == calculated1holeStates[-1][0] and last_calculated_state_2holes[0] == calculated2holesStates[-1][0] \
-                        last_calculated_state_3holes[0] == calculated3holesStates[-1][0] and last_calculated_state_shakeup[0] == calculatedShakeupStates[-1][0]:
-                        print("\nVerifyed that the file with the list of calculated states is consistent.")
-                        print("Proceding with this list.")
-                    else:
-                        # Print some debug information if the flag values are not what expected
-                        # This is done because transition files were already found
-                        print("\nError while checking the file with calculated states.\n")
-                        print("Flag                          -> Value ; Expected:")
-                        print("Completed 1 hole              -> " + str(complete_1hole) + " ; True")
-                        print("Completed 2 holes             -> " + str(complete_2holes) + " ; True")
-                        print("Completed 3 holes             -> " + str(complete_3holes) + " ; True")
-                        print("Completed Shake-up            -> " + str(complete_shakeup) + " ; True")
-                        print("Last calculated cycle 1 hole  -> " + str(last_calculated_cycle_1hole) + "    ; 4")
-                        print("Last calculated cycle 2 holes -> " + str(last_calculated_cycle_2holes) + "    ; 4")
-                        print("Last calculated cycle 3 holes -> " + str(last_calculated_cycle_3holes) + "    ; 4")
-                        print("Last calculated cycle shake-up-> " + str(last_calculated_cycle_shakeup) + "    ; 4")
-                        print("Last calculated state 1 hole  -> " + ', '.join([str(qn) for qn in last_calculated_state_1hole[0]]) + " ; " + ', '.join([str(qn) for qn in calculated1holeStates[-1][0]]))
-                        print("Last calculated state 2 holes -> " + ', '.join([str(qn) for qn in last_calculated_state_2holes[0]]) + " ; " + ', '.join([str(qn) for qn in calculated2holesStates[-1][0]]))
-                        print("Last calculated state 3 holes -> " + ', '.join([str(qn) for qn in last_calculated_state_3holes[0]]) + " ; " + ', '.join([str(qn) for qn in calculated3holesStates[-1][0]]))
-                        print("Last calculated state shake-up-> " + ', '.join([str(qn) for qn in last_calculated_state_shakeup[0]]) + " ; " + ', '.join([str(qn) for qn in calculatedShakeupStates[-1][0]]))
-                        
-                        print("\nPicking up from the last calculated states...\n")
-                        
-                        # Return the flags for later flow control to decide which calculations to perform and where to start those calculations
-                        return complete_1hole, complete_2holes, complete_3holes, complete_shakeup, \
-                                last_calculated_cycle_1hole, last_calculated_cycle_2holes, last_calculated_cycle_3holes, last_calculated_cycle_shakeup, \
-                                last_calculated_state_1hole[0], last_calculated_state_2holes[0], last_calculated_state_3holes[0], last_calculated_state_shakeup[0]
-                # If the 3 hole configurations are supposed to be calculated
-                elif calculate_3holes:
-                    # Check if all state discovery lists are complete, except for the shake-up ones
-                    # Also check if the last calculated cycles and states are the expected ones
-                    if complete_1hole and complete_2holes and complete_3holes and \
-                        last_calculated_cycle_1hole == 4 and last_calculated_cycle_2holes == 4 and last_calculated_cycle_3holes == 4 \
-                        last_calculated_state_1hole[0] == calculated1holeStates[-1][0] and last_calculated_state_2holes[0] == calculated2holesStates[-1][0] \
-                        last_calculated_state_3holes[0] == calculated3holesStates[-1][0]:
-                        print("\nVerifyed that the file with the list of calculated states is consistent.")
-                        print("Proceding with this list.")
-                    else:
-                        # Print some debug information if the flag values are not what expected
-                        # This is done because transition files were already found
-                        print("\nError while checking the file with calculated states.\n")
-                        print("Flag                          -> Value ; Expected:")
-                        print("Completed 1 hole              -> " + str(complete_1hole) + " ; True")
-                        print("Completed 2 holes             -> " + str(complete_2holes) + " ; True")
-                        print("Completed 3 holes             -> " + str(complete_3holes) + " ; True")
-                        print("Completed Shake-up            ->  N/A  ; N/A")
-                        print("Last calculated cycle 1 hole  -> " + str(last_calculated_cycle_1hole) + "    ; 4")
-                        print("Last calculated cycle 2 holes -> " + str(last_calculated_cycle_2holes) + "    ; 4")
-                        print("Last calculated cycle 3 holes -> " + str(last_calculated_cycle_3holes) + "    ; 4")
-                        print("Last calculated cycle shake-up->  N/A  ; N/A")
-                        print("Last calculated state 1 hole  -> " + ', '.join([str(qn) for qn in last_calculated_state_1hole[0]]) + " ; " + ', '.join([str(qn) for qn in calculated1holeStates[-1][0]]))
-                        print("Last calculated state 2 holes -> " + ', '.join([str(qn) for qn in last_calculated_state_2holes[0]]) + " ; " + ', '.join([str(qn) for qn in calculated2holesStates[-1][0]]))
-                        print("Last calculated state 3 holes -> " + ', '.join([str(qn) for qn in last_calculated_state_3holes[0]]) + " ; " + ', '.join([str(qn) for qn in calculated3holesStates[-1][0]]))
-                        print("Last calculated state shake-up->  N/A  ; N/A")
-                        
-                        print("\nPicking up from the last calculated states...\n")
-                        
-                        # Return the flags for later flow control to decide which calculations to perform and where to start those calculations
-                        return complete_1hole, complete_2holes, complete_3holes, complete_shakeup, \
-                                last_calculated_cycle_1hole, last_calculated_cycle_2holes, last_calculated_cycle_3holes, last_calculated_cycle_shakeup, \
-                                last_calculated_state_1hole[0], last_calculated_state_2holes[0], last_calculated_state_3holes[0], last_calculated_state_shakeup[0]
-                # If the shake-up configurations are supposed to be calculated
-                elif calculate_shakeup:
-                    # Check if all state discovery lists are complete, except for the shake-up ones
-                    # Also check if the last calculated cycles and states are the expected ones
-                    if complete_1hole and complete_2holes and complete_shakeup and \
-                        last_calculated_cycle_1hole == 4 and last_calculated_cycle_2holes == 4 and last_calculated_cycle_shakeup == 4 \
-                        last_calculated_state_1hole[0] == calculated1holeStates[-1][0] and last_calculated_state_2holes[0] == calculated2holesStates[-1][0] \
-                        last_calculated_state_shakeup[0] == calculatedShakeupStates[-1][0]:
-                        print("\nVerifyed that the file with the list of calculated states is consistent.")
-                        print("Proceding with this list.")
-                    else:
-                        # Print some debug information if the flag values are not what expected
-                        # This is done because transition files were already found
-                        print("\nError while checking the file with calculated states.\n")
-                        print("Flag                          -> Value ; Expected:")
-                        print("Completed 1 hole              -> " + str(complete_1hole) + " ; True")
-                        print("Completed 2 holes             -> " + str(complete_2holes) + " ; True")
-                        print("Completed 3 holes             ->  N/A  ; N/A")
-                        print("Completed Shake-up            -> " + str(complete_shakeup) + " ; True")
-                        print("Last calculated cycle 1 hole  -> " + str(last_calculated_cycle_1hole) + "    ; 4")
-                        print("Last calculated cycle 2 holes -> " + str(last_calculated_cycle_2holes) + "    ; 4")
-                        print("Last calculated cycle 3 holes ->  N/A  ; N/A")
-                        print("Last calculated cycle shake-up-> " + str(last_calculated_cycle_shakeup) + "    ; 4")
-                        print("Last calculated state 1 hole  -> " + ', '.join([str(qn) for qn in last_calculated_state_1hole[0]]) + " ; " + ', '.join([str(qn) for qn in calculated1holeStates[-1][0]]))
-                        print("Last calculated state 2 holes -> " + ', '.join([str(qn) for qn in last_calculated_state_2holes[0]]) + " ; " + ', '.join([str(qn) for qn in calculated2holesStates[-1][0]]))
-                        print("Last calculated state 3 holes ->   N/A  ; N/A")
-                        print("Last calculated state shake-up-> " + ', '.join([str(qn) for qn in last_calculated_state_shakeup[0]]) + " ; " + ', '.join([str(qn) for qn in calculatedShakeupStates[-1][0]]))
-                        
-                        print("\nPicking up from the last calculated states...\n")
-                        
-                        # Return the flags for later flow control to decide which calculations to perform and where to start those calculations
-                        return complete_1hole, complete_2holes, complete_3holes, complete_shakeup, \
-                                last_calculated_cycle_1hole, last_calculated_cycle_2holes, last_calculated_cycle_3holes, last_calculated_cycle_shakeup, \
-                                last_calculated_state_1hole[0], last_calculated_state_2holes[0], last_calculated_state_3holes[0], last_calculated_state_shakeup[0]
-            else:
-                # Print the file names that are missing
-                print("\nFile with the list of discovered states is missing: ")
-                print("1 hole states -> " + file_cycle_log_1hole)
-                print("2 holes states -> " + file_cycle_log_2holes)
-                
-                # Print the missing file names if the calculations where expected
-                if calculate_3holes:
-                    print("3 holes states -> " + file_cycle_log_3holes)
-                if calculate_shakeup:
-                    print("Shake-up states -> " + file_cycle_log_shakeup)
-                
-                print("\nReverting to full calculation...\n")
-                
-                # Return 1 as a flag to revert to a full calculation instead of a partial one as there are inconsistencies
-                return 1
-            
-            # Check for consistency if the files with the sorted states exist
-            # Only the 1 hole and 2 hole are strictly necessary to continue with calculations
-            if os.path.isfile(file_sorted_1hole) and os.path.isfile(file_sorted_2holes):
-                print("\nFound files with energy sorted calculated states.")
-                
-                # Check if the list of sorted states are complete by comparing the number of sorted states to the number of total states
-                complete_sorted_1hole, complete_sorted_2holes, complete_sorted_3holes, complete_sorted_shakeup = readSortedStates()
-                
-                # If we expect to calculate the 3 hole states
-                if calculate_3holes:
-                    # Check if the sorted 3 hole states were completed
-                    if not complete_sorted_3holes:
-                        print("\nError while reading the sorted states files.")
-                        print("There was a missmatch between the length of sorted states and calculated states for 3 hole configurations.")
-                        print("Continuing with the full list of states and resorting them.")
-                        
-                        # Return 2 as a flag to continue the calculation with the list of total states and resort them
-                        return 2
-                
-                # Check if the list of sorted states are complete for 1 hole and 2 hole states that are necessary for the main calculation
-                if complete_sorted_1hole and complete_sorted_2holes:
-                    print("\nEnergy sorted calculated states files are complete.")
-                    print("Proceding while using this state list.")
-                    
-                    # Read the transition list for all possible transitons, independently if they are supposed to be calculated or not
-                    last_rad_calculated, last_aug_calculated, last_sat_calculated, last_shakeup_calculated = readTransitions()
-                    
-                    # Radiative, Auger and Shake-off
-                    
-                    # Check if the last calculated radiative transition is the expected one
-                    if type(last_rad_calculated) != type(True):
-                        print("\nRead last calculated radiative transition.")
-                        
-                        if last_rad_calculated[0] == calculated1holeStates[-1][0] and last_rad_calculated[1] == calculated1holeStates[-1][0]:
-                            last_rad_calculated = True
-                    else:
-                        print("\nError reading last calculated radiative transition.")
-                        print("Redoing this calculation from the start.")
-                    
-                    # Check if the last calculated auger transition is the expected one
-                    if type(last_aug_calculated) != type(True):
-                        print("\nRead last calculated auger transition.")
-                        
-                        if last_aug_calculated[0] == calculated1holeStates[-1][0] and last_aug_calculated[1] == calculated2holesStates[-1][0]:
-                            last_aug_calculated = True
-                    else:
-                        print("\nError reading last calculated auger transition.")
-                        print("Redoing this calculation from the start.")
-                    
-                    # Check if the last calculated shake-off transition is the expected one
-                    if type(last_sat_calculated) != type(True):
-                        print("\nRead last calculated satellite transition.")
-                        
-                        if last_sat_calculated[0] == calculated2holesStates[-1][0] and last_sat_calculated[1] == calculated2holesStates[-1][0]:
-                            last_sat_calculated = True
-                    else:
-                        print("\nError reading last calculated satellite transition.")
-                        print("Redoing this calculation from the start.")
-                    
-                    
-                    # Shake-up
-                    
-                    # If the shake-up transitions are supposed to be calculated
-                    if calculate_shakeup:
-                        # Check if the list of sorted states are complete for shake-up states
-                        if complete_sorted_shakeup:
-                            # Check if the last calcualted shake-up transition is the expected one
-                            if type(last_shakeup_calculated) != type(True):
-                                print("\nRead last calculated shake-up transition.")
-                                
-                                if last_shakeup_calculated[0] == calculatedShakeupStates[-1][0] and last_shakeup_calculated[1] == calculatedShakeupStates[-1][0]:
-                                    last_shakeup_calculated = True
-                            else:
-                                print("\nError reading last calculated shake-up transition.")
-                                print("Redoing this calculation from the start.")
-                        else:
-                            print("\nError while reading the sorted states files.")
-                            print("There was a missmatch between the length of sorted states and calculated states for shake-up configurations.")
-                            print("Continuing with the full list of states and resorting them.")
-                            
-                            # Return 2 as a flag to continue the calculation with the list of total states and resort them
-                            return 2
-                    
-                    # Return the last calculated transitions to know where to start calculating from
-                    return last_rad_calculated, last_aug_calculated, last_sat_calculated, last_shakeup_calculated
-                else:
-                    print("\nError while reading the sorted states files.")
-                    print("There was a missmatch between the length of sorted states and calculated states.")
-                    print("Continuing with the full list of states and resorting them.")
-                    
-                    # Return 2 as a flag to continue the calculation with the list of total states and resort them
-                    return 2
-            
-            # Return 0 as a flag to know everything went as expected
-            return 0
+        # Return flags for calculation configuration
+        complete_1hole = False
+        complete_2holes = False
+        complete_3holes = False
+        complete_shakeup = False
+        
+        last_calculated_cycle_1hole = 0
+        last_calculated_cycle_2holes = 0
+        last_calculated_cycle_3holes = 0
+        last_calculated_cycle_shakeup = 0
+        
+        last_calculated_state_1hole = [(0, 0, 0)]
+        last_calculated_state_2holes = [(0, 0, 0)]
+        last_calculated_state_3holes = [(0, 0, 0)]
+        last_calculated_state_shakeup = [(0, 0, 0)]
         
         
-        # If there is no transition files, check if the files with the sorted states exist
-        # Only the 1 hole and 2 hole are strictly necessary to continue with calculations
-        if os.path.isfile(file_sorted_1hole) and os.path.isfile(file_sorted_2holes):
-            print("\nFound files with the sorted list of calculated states.")
-            
-            # Check for consistency if the files with the states logs exist
-            # Only the 1 hole and 2 hole are strictly necessary to continue with calculations
-            if os.path.isfile(file_cycle_log_1hole) and os.path.isfile(file_cycle_log_2holes):
-                print("Found file with the list of discovered states.")
-                
-                # Read the state list and get flags to perform some more flow control
-                complete_1hole, complete_2holes, complete_3holes, complete_shakeup, \
-                last_calculated_cycle_1hole, last_calculated_state_1hole, \
-                last_calculated_cycle_2holes, last_calculated_state_2holes, \
-                last_calculated_cycle_3holes, last_calculated_state_3holes, \
-                last_calculated_cycle_shakeup, last_calculated_state_shakeup = readStateList()
-                
-                # If the 3 hole and shake-up configurations are supposed to be calculated
-                if calculate_3holes and calculate_shakeup:
-                    # Check if all state discovery lists are complete
-                    # Also check if the last calculated cycles and states are the expected ones
-                    if complete_1hole and complete_2holes and complete_3holes and complete_shakeup and \
-                        last_calculated_cycle_1hole == 4 and last_calculated_cycle_2holes == 4 and last_calculated_cycle_3holes == 4 and last_calculated_cycle_shakeup == 4 \
-                        last_calculated_state_1hole[0] == calculated1holeStates[-1][0] and last_calculated_state_2holes[0] == calculated2holesStates[-1][0] \
-                        last_calculated_state_3holes[0] == calculated3holesStates[-1][0] and last_calculated_state_shakeup[0] == calculatedShakeupStates[-1][0]:
-                        print("\nVerifyed that the file with the list of calculated states is consistent.")
-                        print("Proceding with this list.")
-                    else:
-                        # Print some debug information if the flag values are not what expected
-                        # This is done because transition files were already found
-                        print("\nError while checking the file with calculated states.\n")
-                        print("Flag                          -> Value ; Expected:")
-                        print("Completed 1 hole              -> " + str(complete_1hole) + " ; True")
-                        print("Completed 2 holes             -> " + str(complete_2holes) + " ; True")
-                        print("Completed 3 holes             -> " + str(complete_3holes) + " ; True")
-                        print("Completed Shake-up            -> " + str(complete_shakeup) + " ; True")
-                        print("Last calculated cycle 1 hole  -> " + str(last_calculated_cycle_1hole) + "    ; 4")
-                        print("Last calculated cycle 2 holes -> " + str(last_calculated_cycle_2holes) + "    ; 4")
-                        print("Last calculated cycle 3 holes -> " + str(last_calculated_cycle_3holes) + "    ; 4")
-                        print("Last calculated cycle shake-up-> " + str(last_calculated_cycle_shakeup) + "    ; 4")
-                        print("Last calculated state 1 hole  -> " + ', '.join([str(qn) for qn in last_calculated_state_1hole[0]]) + " ; " + ', '.join([str(qn) for qn in calculated1holeStates[-1][0]]))
-                        print("Last calculated state 2 holes -> " + ', '.join([str(qn) for qn in last_calculated_state_2holes[0]]) + " ; " + ', '.join([str(qn) for qn in calculated2holesStates[-1][0]]))
-                        print("Last calculated state 3 holes -> " + ', '.join([str(qn) for qn in last_calculated_state_3holes[0]]) + " ; " + ', '.join([str(qn) for qn in calculated3holesStates[-1][0]]))
-                        print("Last calculated state shake-up-> " + ', '.join([str(qn) for qn in last_calculated_state_shakeup[0]]) + " ; " + ', '.join([str(qn) for qn in calculatedShakeupStates[-1][0]]))
-                        
-                        print("\nPicking up from the last calculated states...\n")
-                        
-                        # Return the flags for later flow control to decide which calculations to perform and where to start those calculations
-                        return complete_1hole, complete_2holes, complete_3holes, complete_shakeup, \
-                                last_calculated_cycle_1hole, last_calculated_cycle_2holes, last_calculated_cycle_3holes, last_calculated_cycle_shakeup, \
-                                last_calculated_state_1hole[0], last_calculated_state_2holes[0], last_calculated_state_3holes[0], last_calculated_state_shakeup[0]
-                # If the 3 hole configurations are supposed to be calculated
-                elif calculate_3holes:
-                    # Check if all state discovery lists are complete, except for the shake-up ones
-                    # Also check if the last calculated cycles and states are the expected ones
-                    if complete_1hole and complete_2holes and complete_3holes and \
-                        last_calculated_cycle_1hole == 4 and last_calculated_cycle_2holes == 4 and last_calculated_cycle_3holes == 4 \
-                        last_calculated_state_1hole[0] == calculated1holeStates[-1][0] and last_calculated_state_2holes[0] == calculated2holesStates[-1][0] \
-                        last_calculated_state_3holes[0] == calculated3holesStates[-1][0]:
-                        print("\nVerifyed that the file with the list of calculated states is consistent.")
-                        print("Proceding with this list.")
-                    else:
-                        # Print some debug information if the flag values are not what expected
-                        # This is done because transition files were already found
-                        print("\nError while checking the file with calculated states.\n")
-                        print("Flag                          -> Value ; Expected:")
-                        print("Completed 1 hole              -> " + str(complete_1hole) + " ; True")
-                        print("Completed 2 holes             -> " + str(complete_2holes) + " ; True")
-                        print("Completed 3 holes             -> " + str(complete_3holes) + " ; True")
-                        print("Completed Shake-up            ->  N/A  ; N/A")
-                        print("Last calculated cycle 1 hole  -> " + str(last_calculated_cycle_1hole) + "    ; 4")
-                        print("Last calculated cycle 2 holes -> " + str(last_calculated_cycle_2holes) + "    ; 4")
-                        print("Last calculated cycle 3 holes -> " + str(last_calculated_cycle_3holes) + "    ; 4")
-                        print("Last calculated cycle shake-up->  N/A  ; N/A")
-                        print("Last calculated state 1 hole  -> " + ', '.join([str(qn) for qn in last_calculated_state_1hole[0]]) + " ; " + ', '.join([str(qn) for qn in calculated1holeStates[-1][0]]))
-                        print("Last calculated state 2 holes -> " + ', '.join([str(qn) for qn in last_calculated_state_2holes[0]]) + " ; " + ', '.join([str(qn) for qn in calculated2holesStates[-1][0]]))
-                        print("Last calculated state 3 holes -> " + ', '.join([str(qn) for qn in last_calculated_state_3holes[0]]) + " ; " + ', '.join([str(qn) for qn in calculated3holesStates[-1][0]]))
-                        print("Last calculated state shake-up->  N/A  ; N/A")
-                        
-                        print("\nPicking up from the last calculated states...\n")
-                        
-                        # Return the flags for later flow control to decide which calculations to perform and where to start those calculations
-                        return complete_1hole, complete_2holes, complete_3holes, complete_shakeup, \
-                                last_calculated_cycle_1hole, last_calculated_cycle_2holes, last_calculated_cycle_3holes, last_calculated_cycle_shakeup, \
-                                last_calculated_state_1hole[0], last_calculated_state_2holes[0], last_calculated_state_3holes[0], last_calculated_state_shakeup[0]
-                # If the shake-up configurations are supposed to be calculated
-                elif calculate_shakeup:
-                    # Check if all state discovery lists are complete, except for the shake-up ones
-                    # Also check if the last calculated cycles and states are the expected ones
-                    if complete_1hole and complete_2holes and complete_shakeup and \
-                        last_calculated_cycle_1hole == 4 and last_calculated_cycle_2holes == 4 and last_calculated_cycle_shakeup == 4 \
-                        last_calculated_state_1hole[0] == calculated1holeStates[-1][0] and last_calculated_state_2holes[0] == calculated2holesStates[-1][0] \
-                        last_calculated_state_shakeup[0] == calculatedShakeupStates[-1][0]:
-                        print("\nVerifyed that the file with the list of calculated states is consistent.")
-                        print("Proceding with this list.")
-                    else:
-                        # Print some debug information if the flag values are not what expected
-                        # This is done because transition files were already found
-                        print("\nError while checking the file with calculated states.\n")
-                        print("Flag                          -> Value ; Expected:")
-                        print("Completed 1 hole              -> " + str(complete_1hole) + " ; True")
-                        print("Completed 2 holes             -> " + str(complete_2holes) + " ; True")
-                        print("Completed 3 holes             ->  N/A  ; N/A")
-                        print("Completed Shake-up            -> " + str(complete_shakeup) + " ; True")
-                        print("Last calculated cycle 1 hole  -> " + str(last_calculated_cycle_1hole) + "    ; 4")
-                        print("Last calculated cycle 2 holes -> " + str(last_calculated_cycle_2holes) + "    ; 4")
-                        print("Last calculated cycle 3 holes ->  N/A  ; N/A")
-                        print("Last calculated cycle shake-up-> " + str(last_calculated_cycle_shakeup) + "    ; 4")
-                        print("Last calculated state 1 hole  -> " + ', '.join([str(qn) for qn in last_calculated_state_1hole[0]]) + " ; " + ', '.join([str(qn) for qn in calculated1holeStates[-1][0]]))
-                        print("Last calculated state 2 holes -> " + ', '.join([str(qn) for qn in last_calculated_state_2holes[0]]) + " ; " + ', '.join([str(qn) for qn in calculated2holesStates[-1][0]]))
-                        print("Last calculated state 3 holes ->   N/A  ; N/A")
-                        print("Last calculated state shake-up-> " + ', '.join([str(qn) for qn in last_calculated_state_shakeup[0]]) + " ; " + ', '.join([str(qn) for qn in calculatedShakeupStates[-1][0]]))
-                        
-                        print("\nPicking up from the last calculated states...\n")
-                        
-                        # Return the flags for later flow control to decide which calculations to perform and where to start those calculations
-                        return complete_1hole, complete_2holes, complete_3holes, complete_shakeup, \
-                                last_calculated_cycle_1hole, last_calculated_cycle_2holes, last_calculated_cycle_3holes, last_calculated_cycle_shakeup, \
-                                last_calculated_state_1hole[0], last_calculated_state_2holes[0], last_calculated_state_3holes[0], last_calculated_state_shakeup[0]
-            else:
-                # Print the file names that are missing
-                print("\nFile with the list of discovered states is missing: ")
-                print("1 hole states -> " + file_cycle_log_1hole)
-                print("2 holes states -> " + file_cycle_log_2holes)
-                
-                # Print the missing file names if the calculations where expected
-                if calculate_3holes:
-                    print("3 holes states -> " + file_cycle_log_3holes)
-                if calculate_shakeup:
-                    print("Shake-up states -> " + file_cycle_log_shakeup)
-                
-                print("\nReverting to full calculation...\n")
-                
-                # Return 1 as a flag to revert to a full calculation instead of a partial one as there are inconsistencies
-                return 1
-            
-            # Check if the list of sorted states are complete by comparing the number of sorted states to the number of total states
-            complete_sorted_1hole, complete_sorted_2holes, complete_sorted_3holes, complete_sorted_shakeup = readSortedStates()
-            
-            # If the 3 hole and shake-up configurations are supposed to be calculated
-            if calculate_3holes and calculate_shakeup:
-                # Check if the list of sorted states are complete for 1 hole, 2 hole, 3 hole and shake-up states
-                if complete_sorted_1hole and complete_sorted_2holes and complete_sorted_3holes and complete_sorted_shakeup:
-                    print("\nEnergy sorted calculated states files are complete.")
-                    print("Proceding while using this state list.")
-                    
-                    # Return 3 as a flag that only the complete sorted states lists where found but that was what we expected
-                    return 3
-                else:
-                    print("\nError while reading the sorted states files.")
-                    print("There was a missmatch between the length of sorted states and calculated states.")
-                    print("Continuing with the full list of states and resorting them.")
-                    
-                    # Return 2 as a flag to continue the calculation with the list of total states and resort them
-                    return 2
-            # If the 3 hole configurations are supposed to be calculated
-            elif calculate_3holes:
-                # Check if the list of sorted states are complete for 1 hole, 2 hole and 3 hole states
-                if complete_sorted_1hole and complete_sorted_2holes and complete_sorted_3holes:
-                    print("\nEnergy sorted calculated states files are complete.")
-                    print("Proceding while using this state list.")
-                    
-                    # Return 3 as a flag that only the complete sorted states lists where found but that was what we expected
-                    return 3
-                else:
-                    print("\nError while reading the sorted states files.")
-                    print("There was a missmatch between the length of sorted states and calculated states.")
-                    print("Continuing with the full list of states and resorting them.")
-                    
-                    # Return 2 as a flag to continue the calculation with the list of total states and resort them
-                    return 2
-            # If the shake-up configurations are supposed to be calculated
-            elif calculate_shakeup:
-                # Check if the list of sorted states are complete for 1 hole, 2 hole and shake-up states
-                if complete_sorted_1hole and complete_sorted_2holes and complete_sorted_shakeup:
-                    print("\nEnergy sorted calculated states files are complete.")
-                    print("Proceding while using this state list.")
-                    
-                    # Return 3 as a flag that only the complete sorted states lists where found but that was what we expected
-                    return 3
-                else:
-                    print("\nError while reading the sorted states files.")
-                    print("There was a missmatch between the length of sorted states and calculated states.")
-                    print("Continuing with the full list of states and resorting them.")
-                    
-                    # Return 2 as a flag to continue the calculation with the list of total states and resort them
-                    return 2
-            # If only 1 hole and 2 hole configurations are supposed to be calculated
-            else:
-                # Check if the list of sorted states are complete for 1 hole and 2 hole states
-                if complete_sorted_1hole and complete_sorted_2holes:
-                    print("\nEnergy sorted calculated states files are complete.")
-                    print("Proceding while using this state list.")
-                    
-                    # Return 3 as a flag that only the complete sorted states lists where found but that was what we expected
-                    return 3
-                else:
-                    print("\nError while reading the sorted states files.")
-                    print("There was a missmatch between the length of sorted states and calculated states.")
-                    print("Continuing with the full list of states and resorting them.")
-                    
-                    # Return 2 as a flag to continue the calculation with the list of total states and resort them
-                    return 2
-            
+        complete_sorted_1hole = False
+        complete_sorted_2holes = False
+        complete_sorted_3holes = False
+        complete_sorted_shakeup = False
         
-        # Check for consistency if the files with the states logs exist
-        # Only the 1 hole and 2 hole are strictly necessary to continue with calculations
-        if os.path.isfile(file_cycle_log_1hole) and os.path.isfile(file_cycle_log_2holes):
-            print("\nFound file with the list of discovered states.")
+        
+        last_rad_calculated = False
+        last_aug_calculated = False
+        last_shakeoff_calculated = False
+        last_sat_auger_calculated = False
+        last_shakeup_calculated = False
+        
+        
+        # Flow control flags
+        log_1hole_found = False
+        log_2hole_found = False
+        log_3hole_found = False
+        log_shakeup_found = False
+        
+        sorted_1hole_found = False
+        sorted_2hole_found = False
+        sorted_3hole_found = False
+        sorted_shakeup_found = False
+        
+        rad_trans_found = False
+        aug_trans_found = False
+        shakeoff_trans_found = False
+        shakeup_trans_found = False
+        sat_aug_trans_found = False
+        
+        
+        # SEARCH FOR THE STATE LOG FILES
+        
+        # Check if the 1 hole states log file was found
+        if os.path.isfile(file_cycle_log_1hole):
+            print("\nFound file with the list of discovered 1 hole states.")
             
             # Read the state list and get flags to perform some more flow control
-            complete_1hole, complete_2holes, complete_3holes, complete_shakeup, \
-            last_calculated_cycle_1hole, last_calculated_state_1hole, \
-            last_calculated_cycle_2holes, last_calculated_state_2holes, \
-            last_calculated_cycle_3holes, last_calculated_state_3holes, \
-            last_calculated_cycle_shakeup, last_calculated_state_shakeup = readStateList()
+            complete_1hole, _, _, _, last_calculated_cycle_1hole, last_calculated_state_1hole, \
+            _, _, _, _, _, _ = readStateList(True)
             
-            # If the 3 hole and shake-up configurations are supposed to be calculated
-            if calculate_3holes and calculate_shakeup:
-                # Check if all state discovery lists are complete
-                # Also check if the last calculated cycles and states are the expected ones
-                if complete_1hole and complete_2holes and complete_3holes and complete_shakeup and \
-                    last_calculated_cycle_1hole == 4 and last_calculated_cycle_2holes == 4 and last_calculated_cycle_3holes == 4 and last_calculated_cycle_shakeup == 4 \
-                    last_calculated_state_1hole[0] == calculated1holeStates[-1][0] and last_calculated_state_2holes[0] == calculated2holesStates[-1][0] \
-                    last_calculated_state_3holes[0] == calculated3holesStates[-1][0] and last_calculated_state_shakeup[0] == calculatedShakeupStates[-1][0]:
-                    print("\nVerifyed that the file with the list of calculated states is consistent.")
-                    print("Proceding with this list.")
-                else:
-                    # Print some debug information if the flag values are not what expected
-                    # This is done because transition files were already found
-                    print("\nError while checking the file with calculated states.\n")
-                    print("Flag                          -> Value ; Expected:")
-                    print("Completed 1 hole              -> " + str(complete_1hole) + " ; True")
-                    print("Completed 2 holes             -> " + str(complete_2holes) + " ; True")
-                    print("Completed 3 holes             -> " + str(complete_3holes) + " ; True")
-                    print("Completed Shake-up            -> " + str(complete_shakeup) + " ; True")
-                    print("Last calculated cycle 1 hole  -> " + str(last_calculated_cycle_1hole) + "    ; 4")
-                    print("Last calculated cycle 2 holes -> " + str(last_calculated_cycle_2holes) + "    ; 4")
-                    print("Last calculated cycle 3 holes -> " + str(last_calculated_cycle_3holes) + "    ; 4")
-                    print("Last calculated cycle shake-up-> " + str(last_calculated_cycle_shakeup) + "    ; 4")
-                    print("Last calculated state 1 hole  -> " + ', '.join([str(qn) for qn in last_calculated_state_1hole[0]]) + " ; " + ', '.join([str(qn) for qn in calculated1holeStates[-1][0]]))
-                    print("Last calculated state 2 holes -> " + ', '.join([str(qn) for qn in last_calculated_state_2holes[0]]) + " ; " + ', '.join([str(qn) for qn in calculated2holesStates[-1][0]]))
-                    print("Last calculated state 3 holes -> " + ', '.join([str(qn) for qn in last_calculated_state_3holes[0]]) + " ; " + ', '.join([str(qn) for qn in calculated3holesStates[-1][0]]))
-                    print("Last calculated state shake-up-> " + ', '.join([str(qn) for qn in last_calculated_state_shakeup[0]]) + " ; " + ', '.join([str(qn) for qn in calculatedShakeupStates[-1][0]]))
-                    
-                    print("\nPicking up from the last calculated states...\n")
-                    
-                    # Return the flags for later flow control to decide which calculations to perform and where to start those calculations
-                    return complete_1hole, complete_2holes, complete_3holes, complete_shakeup, \
-                            last_calculated_cycle_1hole, last_calculated_cycle_2holes, last_calculated_cycle_3holes, last_calculated_cycle_shakeup, \
-                            last_calculated_state_1hole[0], last_calculated_state_2holes[0], last_calculated_state_3holes[0], last_calculated_state_shakeup[0]
-            # If the 3 hole configurations are supposed to be calculated
-            elif calculate_3holes:
-                # Check if all state discovery lists are complete, except for the shake-up ones
-                # Also check if the last calculated cycles and states are the expected ones
-                if complete_1hole and complete_2holes and complete_3holes and \
-                    last_calculated_cycle_1hole == 4 and last_calculated_cycle_2holes == 4 and last_calculated_cycle_3holes == 4 \
-                    last_calculated_state_1hole[0] == calculated1holeStates[-1][0] and last_calculated_state_2holes[0] == calculated2holesStates[-1][0] \
-                    last_calculated_state_3holes[0] == calculated3holesStates[-1][0]:
-                    print("\nVerifyed that the file with the list of calculated states is consistent.")
-                    print("Proceding with this list.")
-                else:
-                    # Print some debug information if the flag values are not what expected
-                    # This is done because transition files were already found
-                    print("\nError while checking the file with calculated states.\n")
-                    print("Flag                          -> Value ; Expected:")
-                    print("Completed 1 hole              -> " + str(complete_1hole) + " ; True")
-                    print("Completed 2 holes             -> " + str(complete_2holes) + " ; True")
-                    print("Completed 3 holes             -> " + str(complete_3holes) + " ; True")
-                    print("Completed Shake-up            ->  N/A  ; N/A")
-                    print("Last calculated cycle 1 hole  -> " + str(last_calculated_cycle_1hole) + "    ; 4")
-                    print("Last calculated cycle 2 holes -> " + str(last_calculated_cycle_2holes) + "    ; 4")
-                    print("Last calculated cycle 3 holes -> " + str(last_calculated_cycle_3holes) + "    ; 4")
-                    print("Last calculated cycle shake-up->  N/A  ; N/A")
-                    print("Last calculated state 1 hole  -> " + ', '.join([str(qn) for qn in last_calculated_state_1hole[0]]) + " ; " + ', '.join([str(qn) for qn in calculated1holeStates[-1][0]]))
-                    print("Last calculated state 2 holes -> " + ', '.join([str(qn) for qn in last_calculated_state_2holes[0]]) + " ; " + ', '.join([str(qn) for qn in calculated2holesStates[-1][0]]))
-                    print("Last calculated state 3 holes -> " + ', '.join([str(qn) for qn in last_calculated_state_3holes[0]]) + " ; " + ', '.join([str(qn) for qn in calculated3holesStates[-1][0]]))
-                    print("Last calculated state shake-up->  N/A  ; N/A")
-                    
-                    print("\nPicking up from the last calculated states...\n")
-                    
-                    # Return the flags for later flow control to decide which calculations to perform and where to start those calculations
-                    return complete_1hole, complete_2holes, complete_3holes, complete_shakeup, \
-                            last_calculated_cycle_1hole, last_calculated_cycle_2holes, last_calculated_cycle_3holes, last_calculated_cycle_shakeup, \
-                            last_calculated_state_1hole[0], last_calculated_state_2holes[0], last_calculated_state_3holes[0], last_calculated_state_shakeup[0]
-            # If the shake-up configurations are supposed to be calculated
-            elif calculate_shakeup:
-                # Check if all state discovery lists are complete, except for the shake-up ones
-                # Also check if the last calculated cycles and states are the expected ones
-                if complete_1hole and complete_2holes and complete_shakeup and \
-                    last_calculated_cycle_1hole == 4 and last_calculated_cycle_2holes == 4 and last_calculated_cycle_shakeup == 4 \
-                    last_calculated_state_1hole[0] == calculated1holeStates[-1][0] and last_calculated_state_2holes[0] == calculated2holesStates[-1][0] \
-                    last_calculated_state_shakeup[0] == calculatedShakeupStates[-1][0]:
-                    print("\nVerifyed that the file with the list of calculated states is consistent.")
-                    print("Proceding with this list.")
-                else:
-                    # Print some debug information if the flag values are not what expected
-                    # This is done because transition files were already found
-                    print("\nError while checking the file with calculated states.\n")
-                    print("Flag                          -> Value ; Expected:")
-                    print("Completed 1 hole              -> " + str(complete_1hole) + " ; True")
-                    print("Completed 2 holes             -> " + str(complete_2holes) + " ; True")
-                    print("Completed 3 holes             ->  N/A  ; N/A")
-                    print("Completed Shake-up            -> " + str(complete_shakeup) + " ; True")
-                    print("Last calculated cycle 1 hole  -> " + str(last_calculated_cycle_1hole) + "    ; 4")
-                    print("Last calculated cycle 2 holes -> " + str(last_calculated_cycle_2holes) + "    ; 4")
-                    print("Last calculated cycle 3 holes ->  N/A  ; N/A")
-                    print("Last calculated cycle shake-up-> " + str(last_calculated_cycle_shakeup) + "    ; 4")
-                    print("Last calculated state 1 hole  -> " + ', '.join([str(qn) for qn in last_calculated_state_1hole[0]]) + " ; " + ', '.join([str(qn) for qn in calculated1holeStates[-1][0]]))
-                    print("Last calculated state 2 holes -> " + ', '.join([str(qn) for qn in last_calculated_state_2holes[0]]) + " ; " + ', '.join([str(qn) for qn in calculated2holesStates[-1][0]]))
-                    print("Last calculated state 3 holes ->   N/A  ; N/A")
-                    print("Last calculated state shake-up-> " + ', '.join([str(qn) for qn in last_calculated_state_shakeup[0]]) + " ; " + ', '.join([str(qn) for qn in calculatedShakeupStates[-1][0]]))
-                    
-                    print("\nPicking up from the last calculated states...\n")
-                    
-                    # Return the flags for later flow control to decide which calculations to perform and where to start those calculations
-                    return complete_1hole, complete_2holes, complete_3holes, complete_shakeup, \
-                            last_calculated_cycle_1hole, last_calculated_cycle_2holes, last_calculated_cycle_3holes, last_calculated_cycle_shakeup, \
-                            last_calculated_state_1hole[0], last_calculated_state_2holes[0], last_calculated_state_3holes[0], last_calculated_state_shakeup[0]
+            # Check if all state discovery lists are complete
+            # Also check if the last calculated cycles and states are the expected ones    
+            if complete_1hole and last_calculated_cycle_1hole == 4 and last_calculated_state_1hole[0] == calculated1holeStates[-1][0]:
+                log_1hole_found = True
+                print("\nVerifyed that the file with the list of calculated states for 1 hole is consistent.")
+                print("Proceding with this list.")
+            else:
+                # Print some debug information if the flag values are not what expected
+                # This is done because transition files were already found
+                print("\nError while checking the file with calculated states.\n")
+                print("Flag                          -> Value ; Expected:")
+                print("Completed 1 hole              -> " + str(complete_1hole) + " ; True")
+                print("Last calculated cycle 1 hole  -> " + str(last_calculated_cycle_1hole) + "    ; 4")
+                print("Last calculated state 1 hole  -> " + ', '.join([str(qn) for qn in last_calculated_state_1hole[0]]) + " ; " + ', '.join([str(qn) for qn in calculated1holeStates[-1][0]]))
+                
+                print("\nPicking up from the last calculated states...\n")
         else:
-            print("\nFiles with the previously calculated states directories could not be found.")
-            print("Please do a full calculation first.")
-            sys.exit(1)
+            print("\n Warning the file with the calculated 1 hole states log was not found!!! Redoing this calculation.")
+        
+        # Check if the 2 hole states log file was found
+        if os.path.isfile(file_cycle_log_2holes):
+            print("\nFound file with the list of discovered 2 hole states.")
+            
+            # Read the state list and get flags to perform some more flow control
+            _, complete_2holes, _, _, _, _, last_calculated_cycle_2holes, last_calculated_state_2holes, _, _, _, _ = readStateList(False, True)
+            
+            # Check if all state discovery lists are complete
+            # Also check if the last calculated cycles and states are the expected ones    
+            if complete_2holes and last_calculated_cycle_2holes == 4 and last_calculated_state_2holes[0] == calculated2holesStates[-1][0]:
+                log_2hole_found = True
+                print("\nVerifyed that the file with the list of calculated states for 2 hole is consistent.")
+                print("Proceding with this list.")
+            else:
+                # Print some debug information if the flag values are not what expected
+                # This is done because transition files were already found
+                print("\nError while checking the file with calculated states.\n")
+                print("Flag                          -> Value ; Expected:")
+                print("Completed 2 hole              -> " + str(complete_2holes) + " ; True")
+                print("Last calculated cycle 2 hole  -> " + str(last_calculated_cycle_2holes) + "    ; 4")
+                print("Last calculated state 2 hole  -> " + ', '.join([str(qn) for qn in last_calculated_state_2holes[0]]) + " ; " + ', '.join([str(qn) for qn in calculated2holesStates[-1][0]]))
+                
+                print("\nPicking up from the last calculated states...\n")
+        else:
+            print("\n Warning the file with the calculated 2 hole states log was not found!!! Redoing this calculation.")
+        
+        # Check if the 3 hole states log file was found
+        if os.path.isfile(file_cycle_log_3holes) and calculate_3holes:
+            print("\nFound file with the list of discovered 3 hole states.")
+            
+            # Read the state list and get flags to perform some more flow control
+            _, _, complete_3holes, _, _, _, _, _, last_calculated_cycle_3holes, last_calculated_state_3holes, _, _ = readStateList(False, False, True)
+            
+            # Check if all state discovery lists are complete
+            # Also check if the last calculated cycles and states are the expected ones    
+            if complete_3holes and last_calculated_cycle_3holes == 4 and last_calculated_state_3holes[0] == calculated3holesStates[-1][0]:
+                log_3hole_found = True
+                print("\nVerifyed that the file with the list of calculated states for 3 hole is consistent.")
+                print("Proceding with this list.")
+            else:
+                # Print some debug information if the flag values are not what expected
+                # This is done because transition files were already found
+                print("\nError while checking the file with calculated states.\n")
+                print("Flag                          -> Value ; Expected:")
+                print("Completed 3 hole              -> " + str(complete_3holes) + " ; True")
+                print("Last calculated cycle 3 hole  -> " + str(last_calculated_cycle_3holes) + "    ; 4")
+                print("Last calculated state 3 hole  -> " + ', '.join([str(qn) for qn in last_calculated_state_3holes[0]]) + " ; " + ', '.join([str(qn) for qn in calculated3holesStates[-1][0]]))
+                
+                print("\nPicking up from the last calculated states...\n")
+        else:
+            print("\n Warning the file with the calculated 3 hole states log was not found or the calculation was not configured for 3 holes!!!")
+        
+        # Check if the shake-up states log file was found
+        if os.path.isfile(file_cycle_log_shakeup) and calculate_shakeup:
+            print("\nFound file with the list of discovered shake-up states.")
+            
+            # Read the state list and get flags to perform some more flow control
+            _, _, _, complete_shakeup, _, _, _, _, _, _, last_calculated_cycle_shakeup, last_calculated_state_shakeup = readStateList(False, False, False, True)
+            
+            # Check if all state discovery lists are complete
+            # Also check if the last calculated cycles and states are the expected ones    
+            if complete_shakeup and last_calculated_cycle_shakeup == 4 and last_calculated_state_shakeup[0] == calculatedShakeupStates[-1][0]:
+                log_shakeup_found = True
+                print("\nVerifyed that the file with the list of calculated states for shake-up is consistent.")
+                print("Proceding with this list.")
+            else:
+                # Print some debug information if the flag values are not what expected
+                # This is done because transition files were already found
+                print("\nError while checking the file with calculated states.\n")
+                print("Flag                          -> Value ; Expected:")
+                print("Completed shake-up              -> " + str(complete_3holes) + " ; True")
+                print("Last calculated cycle shake-up  -> " + str(last_calculated_cycle_shakeup) + "    ; 4")
+                print("Last calculated state shake-up  -> " + ', '.join([str(qn) for qn in last_calculated_state_shakeup[0]]) + " ; " + ', '.join([str(qn) for qn in calculatedShakeupStates[-1][0]]))
+                
+                print("\nPicking up from the last calculated states...\n")
+        else:
+            print("\n Warning the file with the calculated shake-up states log was not found or the calculation was not configured for shake-up!!!")
+        
+        
+        # SEARCH FOR THE ENERGY SORTED STATES FILES
+        
+        # Check if the file with sorted 1 hole states was found
+        if os.path.isfile(file_sorted_1hole):
+            print("\nFound files with energy sorted calculated 1 hole states.")
+            
+            # Check if the list of sorted states are complete by comparing the number of sorted states to the number of total states
+            complete_sorted_1hole, _, _, _ = readSortedStates(True)
+            
+            if complete_sorted_1hole:
+                sorted_1hole_found = True
+                print("\nEnergy sorted calculated 1 hole states file is complete.")
+                print("Proceding while using this state list.")
+        else:
+            print("\n Warning the file with the list of energy sorted 1 hole states was not found.")
+        
+        # Check if the file with sorted 2 hole states was found
+        if os.path.isfile(file_sorted_2holes):
+            print("\nFound files with energy sorted calculated 2 hole states.")
+            
+            # Check if the list of sorted states are complete by comparing the number of sorted states to the number of total states
+            _, complete_sorted_2holes, _, _ = readSortedStates(False, True)
+            
+            if complete_sorted_2holes:
+                sorted_2hole_found = True
+                print("\nEnergy sorted calculated 2 hole states file is complete.")
+                print("Proceding while using this state list.")
+        else:
+            print("\n Warning the file with the list of energy sorted 2 hole states was not found.")
+        
+        # Check if the file with sorted 3 hole states was found
+        if os.path.isfile(file_sorted_3holes):
+            print("\nFound files with energy sorted calculated 3 hole states.")
+            
+            # Check if the list of sorted states are complete by comparing the number of sorted states to the number of total states
+            _, _, complete_sorted_3holes, _ = readSortedStates(False, False, True)
+            
+            if complete_sorted_3holes:
+                sorted_3hole_found = True
+                print("\nEnergy sorted calculated 3 hole states file is complete.")
+                print("Proceding while using this state list.")
+        else:
+            print("\n Warning the file with the list of energy sorted 3 hole states was not found.")
+        
+        # Check if the file with sorted shake-up states was found
+        if os.path.isfile(file_sorted_shakeup):
+            print("\nFound files with energy sorted calculated shake-up states.")
+            
+            # Check if the list of sorted states are complete by comparing the number of sorted states to the number of total states
+            _, _, _, complete_sorted_shakeup = readSortedStates(False, False, False, True)
+            
+            if complete_sorted_shakeup:
+                sorted_shakeup_found = True
+                print("\nEnergy sorted calculated shake-up states file is complete.")
+                print("Proceding while using this state list.")
+        else:
+            print("\n Warning the file with the list of energy sorted shake-up states was not found.")
+        
+        
+        # SEARCH FOR THE TRANSITION FILES
+        
+        # Check if the file with radiative transitions exists
+        if os.path.isfile(file_calculated_radiative):
+            rad_trans_found = True
+            print("\nFound the file with the last calculated radiative transitions.")
+            
+            last_rad_calculated, _, _, _, _ = readTransitions(True)
+        else:
+            print("\n No radiative transitions file was found!!!")
+        
+        # Check if the file with auger transitions exists
+        if os.path.isfile(file_calculated_auger):
+            aug_trans_found = True
+            print("\nFound the file with the last calculated auger transitions.")
+            
+            _, last_aug_calculated, _, _, _ = readTransitions(False, True)
+        else:
+            print("\n No auger transitions file was found!!!")
+        
+        # Check if the file with shake-off transitions exists
+        if os.path.isfile(file_calculated_shakeoff):
+            shakeoff_trans_found = True
+            print("\nFound the file with the last calculated shake-off transitions.")
+            
+            _, _, last_shakeoff_calculated, _, _ = readTransitions(False, False, True)
+        else:
+            print("\n No shake-off transitions file was found!!!")
+        
+        # Check if the file with shake-up transitions exists
+        if os.path.isfile(file_calculated_shakeup):
+            shakeup_trans_found = True
+            print("\nFound the file with the last calculated shake-up transitions.")
+            
+            _, _, _, _, last_shakeup_calculated = readTransitions(False, False, False, False, True)
+        else:
+            print("\n No shake-up transitions file was found!!!")
+        
+        # Check if the file with satellite auger transitions exists
+        if os.path.isfile(file_calculated_sat_auger):
+            sat_aug_trans_found = True
+            print("\nFound the file with the last calculated satellite auger transitions.")
+            
+            _, _, _, last_sat_auger_calculated, _ = readTransitions(False, False, False, True)
+        else:
+            print("\n No satellite auger transitions file was found!!!")
+        
+        
+        log_flags = [log_1hole_found, log_2hole_found, log_3hole_found, log_shakeup_found]
+        sorted_flags = [sorted_1hole_found, sorted_2hole_found, sorted_3hole_found, sorted_shakeup_found]
+        transition_flags = [rad_trans_found, aug_trans_found, shakeoff_trans_found, sat_aug_trans_found, shakeup_trans_found]
+        
+        # If there was a problem with the log files then we cannot procede
+        if not any(log_flags):
+            print("\n Error while reading the state log files!!!")
+            
+            return complete_1hole, complete_2holes, complete_3holes, complete_shakeup, \
+                    last_calculated_cycle_1hole, last_calculated_cycle_2holes, last_calculated_cycle_3holes, last_calculated_cycle_shakeup, \
+                    last_calculated_state_1hole, last_calculated_state_2holes, last_calculated_state_3holes, last_calculated_state_shakeup
+        
+        # If we have at least a valid log file but no sorted states files or transition files we have to check further
+        if any(log_flags) and not any(sorted_flags) and not any(transition_flags):
+            print("\n Some state log files were found with the expected contents and no sorted lists or transition files were found.")
+            
+            # If the calculation is configured to calculate 3 holes and shake-up states
+            if calculate_3holes and calculate_shakeup:
+                # We check if all the log flags are valid
+                if all(log_flags):
+                    print("\n All state log files were found with the expected contents.")
+                    
+                    # Return 1 to flag that we can proceed with the calculation from the current log cycles and start with sorting them
+                    return 1
+                else:
+                    print("\n There was an error while reading the state log files!!!")
+                    print("\n Trying to pick up from the last calculated states.")
+                    
+                    # All log flags shoud be valid, if not then we need to pick up the calculation from where it was stopped
+                    # In this case the first element is 1 to flag that all states are to be recalculation from where it stopped previously
+                    return 1, complete_1hole, complete_2holes, complete_3holes, complete_shakeup, \
+                            last_calculated_cycle_1hole, last_calculated_cycle_2holes, last_calculated_cycle_3holes, last_calculated_cycle_shakeup, \
+                            last_calculated_state_1hole, last_calculated_state_2holes, last_calculated_state_3holes, last_calculated_state_shakeup
+            # If the calculation is configured to calculate only 3 holes states
+            elif calculate_3holes:
+                # We check if the first 3 log flags are valid
+                if all(log_flags[:-1]):
+                    print("\n State log files for 1, 2 and 3 holes were found with the expected contents.")
+                    
+                    # Return 1 to flag that we can proceed with the calculation from the current log cycles and start with sorting them
+                    return 1
+                else:
+                    print("\n There was an error while reading the state log files!!!")
+                    print("\n Trying to pick up from the last calculated states.")
+                    
+                    # The first 3 log flags shoud be valid, if not then we need to pick up the calculation from where it was stopped
+                    # In this case the first element is 2 to flag that the first 3 types of states are to be recalculation from where it stopped previously
+                    return 2, complete_1hole, complete_2holes, complete_3holes, \
+                            last_calculated_cycle_1hole, last_calculated_cycle_2holes, last_calculated_cycle_3holes, \
+                            last_calculated_state_1hole, last_calculated_state_2holes, last_calculated_state_3holes
+            # If the calculation is configured to calculate only shake-up states
+            elif calculate_shakeup:
+                # We check if the first 2 and last log flags are valid
+                if log_1hole_found and log_2hole_found and log_shakeup_found:
+                    print("\n State log files for shake-up, 1 and 2 holes were found with the expected contents.")
+                    
+                    # Return 1 to flag that we can proceed with the calculation from the current log cycles and start with sorting them
+                    return 1
+                else:
+                    print("\n There was an error while reading the state log files!!!")
+                    print("\n Trying to pick up from the last calculated states.")
+                    
+                    # The first 2 and last log flags shoud be valid, if not then we need to pick up the calculation from where it was stopped
+                    # In this case the first element is 3 to flag that the first 2 and last types of states are to be recalculation from where it stopped previously
+                    return 3, complete_1hole, complete_2holes, complete_shakeup, \
+                            last_calculated_cycle_1hole, last_calculated_cycle_2holes, last_calculated_cycle_shakeup, \
+                            last_calculated_state_1hole, last_calculated_state_2holes, last_calculated_state_shakeup
+            # If the calculation is configured to calculate only 1 and 2 hole states
+            else:
+                # We check if the first 2 log flags are valid
+                if all(log_flags[:-2]):
+                    print("\n State log files for 1 and 2 holes were found with the expected contents.")
+                    
+                    # Return 1 to flag that we can proceed with the calculation from the current log cycles and start with sorting them
+                    return 1
+                else:
+                    print("\n There was an error while reading the state log files!!!")
+                    print("\n Trying to pick up from the last calculated states.")
+                    
+                    # The first 2 log flags shoud be valid, if not then we need to pick up the calculation from where it was stopped
+                    # In this case the first element is 4 to flag that the first 2 types of states are to be recalculated from where it stopped previously
+                    return 4, complete_1hole, complete_2holes, \
+                            last_calculated_cycle_1hole, last_calculated_cycle_2holes, \
+                            last_calculated_state_1hole, last_calculated_state_2holes
+        # If we have at least a valid log file and a valid sorted states file but no transition files we have to check further
+        elif any(log_flags) and any(sorted_flags) and not any(transition_flags):
+            print("\n Some state log files and energy sorted files were found with the expected contents but no transition files were found.")
+            
+            # If the calculation is configured to calculate 3 holes and shake-up states
+            if calculate_3holes and calculate_shakeup:
+                # We check if all log and sorted flags are valid
+                if all(log_flags) and all(sorted_flags):
+                    print("\n All state log files and energy sorted files were found with the expected contents.")
+                    
+                    # Return 2 to flag that we can proceed with the calculation from the current sorted states list and start calculating the transitions
+                    return 2
+                else:
+                    # Check if all log flags are valid even though not all sorted flags are
+                    if all(log_flags):
+                        print("\n There was an error while reading the energy sorted states file!!!")
+                        print("\n Resorting the found state lists...")
+                        
+                        # Return the flags for the states that need to be resorted
+                        # In this case the first element is 5 to flag that all type of states are to be potentially resorted
+                        return 5, complete_sorted_1hole, complete_sorted_2holes, complete_sorted_3holes, complete_sorted_shakeup
+                    else:
+                        print("\n There was an error while reading the state log files!!!")
+                        print("\n Ignoring the list of energy sorted states and trying to pick up from the last calculated states.")
+                        
+                        # All log flags shoud be valid, if not then we need to pick up the calculation from where it was stopped
+                        # In this case the first element is 1 to flag that all types of states are to be recalculated from where it stopped previously
+                        return 1, complete_1hole, complete_2holes, complete_3holes, complete_shakeup, \
+                            last_calculated_cycle_1hole, last_calculated_cycle_2holes, last_calculated_cycle_3holes, last_calculated_cycle_shakeup, \
+                            last_calculated_state_1hole, last_calculated_state_2holes, last_calculated_state_3holes, last_calculated_state_shakeup
+            # If the calculation is configured to calculate only 3 holes states
+            elif calculate_3holes:
+                # We check if the first 3 log and sorted flags are valid
+                if all(log_flags[:-1]) and all(sorted_flags[:-1]):
+                    print("\n State log files and energy sorted files for 1, 2 and 3 holes were found with the expected contents.")
+                    
+                    # Return 2 to flag that we can proceed with the calculation from the current sorted states list and start calculating the transitions
+                    return 2
+                else:
+                    # Check if the first 3 log flags are valid even though not all sorted flags are
+                    if all(log_flags[:-1]):
+                        print("\n There was an error while reading the energy sorted states file!!!")
+                        print("\n Resorting the found state lists...")
+                        
+                        # Return the flags for the states that need to be resorted
+                        # In this case the first element is 6 to flag that the first 3 types of states are to be potentially resorted
+                        return 6, complete_sorted_1hole, complete_sorted_2holes, complete_sorted_3holes
+                    else:
+                        print("\n There was an error while reading the state log files!!!")
+                        print("\n Ignoring the list of energy sorted states and trying to pick up from the last calculated states.")
+                        
+                        # All log flags shoud be valid, if not then we need to pick up the calculation from where it was stopped
+                        # In this case the first element is 2 to flag that the first 3 types of states are to be recalculated from where it stopped previously
+                        return 2, complete_1hole, complete_2holes, complete_3holes, \
+                            last_calculated_cycle_1hole, last_calculated_cycle_2holes, last_calculated_cycle_3holes, \
+                            last_calculated_state_1hole, last_calculated_state_2holes, last_calculated_state_3holes
+            # If the calculation is configured to calculate only shake-up states
+            elif calculate_shakeup:
+                # We check if the first 2 and last log and sorted flags are valid
+                if log_1hole_found and log_2hole_found and log_shakeup_found and sorted_1hole_found and sorted_2hole_found and sorted_shakeup_found:
+                    print("\n State log files and energy sorted files for shake-up, 1 and 2 holes were found with the expected contents.")
+                    
+                    # Return 2 to flag that we can proceed with the calculation from the current sorted states list and start calculating the transitions
+                    return 2
+                else:
+                    # Check if the first 2 and last log flags are valid even though not all sorted flags are
+                    if log_1hole_found and log_2hole_found and log_shakeup_found:
+                        print("\n There was an error while reading the energy sorted states file!!!")
+                        print("\n Resorting the found state lists...")
+                        
+                        # Return the flags for the states that need to be resorted
+                        # In this case the first element is 7 to flag that the first 2 and last types of states are to be potentially resorted
+                        return 7, complete_sorted_1hole, complete_sorted_2holes, complete_sorted_shakeup
+                    else:
+                        print("\n There was an error while reading the state log files!!!")
+                        print("\n Ignoring the list of energy sorted states and trying to pick up from the last calculated states.")
+                        
+                        # All log flags shoud be valid, if not then we need to pick up the calculation from where it was stopped
+                        # In this case the first element is 3 to flag that the first 2 and last types of states are to be recalculated from where it stopped previously
+                        return 3, complete_1hole, complete_2holes, complete_shakeup, \
+                            last_calculated_cycle_1hole, last_calculated_cycle_2holes, last_calculated_cycle_shakeup, \
+                            last_calculated_state_1hole, last_calculated_state_2holes, last_calculated_state_shakeup
+            # If the calculation is configured to calculate only 1 and 2 hole states
+            else:
+                # We check if the first 2 log and sorted flags are valid
+                if all(log_flags[:-2]) and all(sorted_flags[:-2]):
+                    print("\n State log files and energy sorted files for 1 and 2 holes were found with the expected contents.")
+                    
+                    # Return 2 to flag that we can proceed with the calculation from the current sorted states list and start calculating the transitions
+                    return 2
+                else:
+                    # Check if the first 2 log flags are valid even though not all sorted flags are
+                    if all(log_flags[:-2]):
+                        print("\n There was an error while reading the energy sorted states file!!!")
+                        print("\n Resorting the found state lists...")
+                        
+                        # Return the flags for the states that need to be resorted
+                        # In this case the first element is 8 to flag that the first 2 types of states are to be potentially resorted
+                        return 8, complete_sorted_1hole, complete_sorted_2holes
+                    else:
+                        print("\n There was an error while reading the state log files!!!")
+                        print("\n Ignoring the list of energy sorted states and trying to pick up from the last calculated states.")
+                        
+                        # All log flags shoud be valid, if not then we need to pick up the calculation from where it was stopped
+                        # In this case the first element is 3 to flag that the first 2 types of states are to be recalculated from where it stopped previously
+                        return 4, complete_1hole, complete_2holes, \
+                            last_calculated_cycle_1hole, last_calculated_cycle_2holes, \
+                            last_calculated_state_1hole, last_calculated_state_2holes
+        # If we have at least a valid log file and a valid sorted states file and a valid transition file we have to check further
+        elif any(log_flags) and any(sorted_flags) and any(transition_flags):
+            print("\n Some state log files and energy sorted files and transition files were found with the expected contents.")
+            
+            # If the calculation is configured to calculate 3 holes and shake-up states
+            if calculate_3holes and calculate_shakeup:
+                # We check if all log, sorted and transition flags are valid
+                if all(log_flags) and all(sorted_flags) and all(transition_flags):
+                    print("\n All state log files, energy sorted files and transition files were found with the expected contents.")
+                    
+                    # Return the flags for the transitions that might need to be recalculated
+                    # In this case the first element is 1 to flag that all type of transitions are to be potentially recalculated
+                    return 1, last_rad_calculated, last_aug_calculated, last_shakeoff_calculated, last_sat_auger_calculated, last_shakeup_calculated
+                else:
+                    # Check if all sorted flags are valid even though not all transition flags are
+                    if all(sorted_flags):
+                        print("\n There was an error while reading the transition files!!!")
+                        print("\n Using the energy sorted states list and redoing the needed transitions...")
+                        
+                        # Return the flags for the transitions that might need to be recalculated
+                        # In this case the first element is 1 to flag that all type of transitions are to be potentially recalculated
+                        return 1, last_rad_calculated, last_aug_calculated, last_shakeoff_calculated, last_sat_auger_calculated, last_shakeup_calculated
+                    # Check if all log flags are valid even though not all sorted and transition flags are
+                    elif all(log_flags):
+                        print("\n There was an error while reading the energy sorted states file!!!")
+                        print("\n Resorting the found state lists...")
+                        
+                        # Return the flags for the states that need to be resorted
+                        # In this case the first element is 5 to flag that all type of states are to be potentially resorted
+                        return 5, complete_sorted_1hole, complete_sorted_2holes, complete_sorted_3holes, complete_sorted_shakeup
+                    else:
+                        print("\n There was an error while reading the state log files!!!")
+                        print("\n Ignoring the list of energy sorted states and trying to pick up from the last calculated states.")
+                        
+                        # All log flags shoud be valid, if not then we need to pick up the calculation from where it was stopped
+                        # In this case the first element is 1 to flag that all types of states are to be recalculated from where it stopped previously
+                        return 1, complete_1hole, complete_2holes, complete_3holes, complete_shakeup, \
+                            last_calculated_cycle_1hole, last_calculated_cycle_2holes, last_calculated_cycle_3holes, last_calculated_cycle_shakeup, \
+                            last_calculated_state_1hole, last_calculated_state_2holes, last_calculated_state_3holes, last_calculated_state_shakeup
+            # If the calculation is configured to calculate only 3 holes states
+            elif calculate_3holes:
+                # We check if all log, sorted and transition flags are valid
+                if all(log_flags[:-1]) and all(sorted_flags[:-1]) and all(transition_flags[:-1]):
+                    print("\n All state log files, energy sorted files and transition files were found with the expected contents.")
+                    
+                    # Return the flags for the transitions that might need to be recalculated
+                    # In this case the first element is 2 to flag that the first 4 type of transitions are to be potentially recalculated
+                    return 2, last_rad_calculated, last_aug_calculated, last_shakeoff_calculated, last_sat_auger_calculated
+                else:
+                    # Check if all sorted flags are valid even though not all transition flags are
+                    if all(sorted_flags[:-1]):
+                        print("\n There was an error while reading the transition files!!!")
+                        print("\n Using the energy sorted states list and redoing the needed transitions...")
+                        
+                        # Return the flags for the transitions that might need to be recalculated
+                        # In this case the first element is 1 to flag that all type of transitions are to be potentially recalculated
+                        return 2, last_rad_calculated, last_aug_calculated, last_shakeoff_calculated, last_sat_auger_calculated
+                    # Check if all log flags are valid even though not all sorted and transition flags are
+                    elif all(log_flags[:-1]):
+                        print("\n There was an error while reading the energy sorted states file!!!")
+                        print("\n Resorting the found state lists...")
+                        
+                        # Return the flags for the states that need to be resorted
+                        # In this case the first element is 6 to flag that the first 3 type of states are to be potentially resorted
+                        return 6, complete_sorted_1hole, complete_sorted_2holes, complete_sorted_3holes
+                    else:
+                        print("\n There was an error while reading the state log files!!!")
+                        print("\n Ignoring the list of energy sorted states and trying to pick up from the last calculated states.")
+                        
+                        # All log flags shoud be valid, if not then we need to pick up the calculation from where it was stopped
+                        # In this case the first element is 2 to flag that the first 3 types of states are to be recalculated from where it stopped previously
+                        return 2, complete_1hole, complete_2holes, complete_3holes, \
+                            last_calculated_cycle_1hole, last_calculated_cycle_2holes, last_calculated_cycle_3holes, \
+                            last_calculated_state_1hole, last_calculated_state_2holes, last_calculated_state_3holes
+            # If the calculation is configured to calculate only shake-up states
+            elif calculate_shakeup:
+                # We check if all log, sorted and transition flags are valid
+                if log_1hole_found and log_2hole_found and log_shakeup_found and \
+                    sorted_1hole_found and sorted_2hole_found and sorted_shakeup_found and \
+                    rad_trans_found and aug_trans_found and shakeoff_trans_found and shakeup_trans_found:
+                    print("\n All state log files, energy sorted files and transition files were found with the expected contents.")
+                    
+                    # Return the flags for the transitions that might need to be recalculated
+                    # In this case the first element is 3 to flag that the first 4 type of transitions are to be potentially recalculated
+                    return 3, last_rad_calculated, last_aug_calculated, last_shakeoff_calculated, last_shakeup_calculated
+                else:
+                    # Check if all sorted flags are valid even though not all transition flags are
+                    if sorted_1hole_found and sorted_2hole_found and sorted_shakeup_found:
+                        print("\n There was an error while reading the transition files!!!")
+                        print("\n Using the energy sorted states list and redoing the needed transitions...")
+                        
+                        # Return the flags for the transitions that might need to be recalculated
+                        # In this case the first element is 3 to flag that all type of transitions are to be potentially recalculated
+                        return 3, last_rad_calculated, last_aug_calculated, last_shakeoff_calculated, last_shakeup_calculated
+                    # Check if all log flags are valid even though not all sorted and transition flags are
+                    elif log_1hole_found and log_2hole_found and log_shakeup_found:
+                        print("\n There was an error while reading the energy sorted states file!!!")
+                        print("\n Resorting the found state lists...")
+                        
+                        # Return the flags for the states that need to be resorted
+                        # In this case the first element is 7 to flag that the first 2 and last types of states are to be potentially resorted
+                        return 7, complete_sorted_1hole, complete_sorted_2holes, complete_sorted_shakeup
+                    else:
+                        print("\n There was an error while reading the state log files!!!")
+                        print("\n Ignoring the list of energy sorted states and trying to pick up from the last calculated states.")
+                        
+                        # All log flags shoud be valid, if not then we need to pick up the calculation from where it was stopped
+                        # In this case the first element is 3 to flag that the first 2 and last types of states are to be recalculated from where it stopped previously
+                        return 3, complete_1hole, complete_2holes, complete_shakeup, \
+                            last_calculated_cycle_1hole, last_calculated_cycle_2holes, last_calculated_cycle_shakeup, \
+                            last_calculated_state_1hole, last_calculated_state_2holes, last_calculated_state_shakeup
+            # If the calculation is configured to calculate only 1 and 2 hole states
+            else:
+                # We check if all log, sorted and transition flags are valid
+                if all(log_flags[:-2]) and all(sorted_flags[:-2]) and all(transition_flags[:-2]):
+                    print("\n All state log files, energy sorted files and transition files were found with the expected contents.")
+                    
+                    # Return the flags for the transitions that might need to be recalculated
+                    # In this case the first element is 4 to flag that the first 2 type of transitions are to be potentially recalculated
+                    return 4, last_rad_calculated, last_aug_calculated
+                else:
+                    # Check if all sorted flags are valid even though not all transition flags are
+                    if all(sorted_flags[:-2]):
+                        print("\n There was an error while reading the transition files!!!")
+                        print("\n Using the energy sorted states list and redoing the needed transitions...")
+                        
+                        # Return the flags for the transitions that might need to be recalculated
+                        # In this case the first element is 4 to flag that all type of transitions are to be potentially recalculated
+                        return 4, last_rad_calculated, last_aug_calculated
+                    # Check if all log flags are valid even though not all sorted and transition flags are
+                    elif all(log_flags[:-2]):
+                        print("\n There was an error while reading the energy sorted states file!!!")
+                        print("\n Resorting the found state lists...")
+                        
+                        # Return the flags for the states that need to be resorted
+                        # In this case the first element is 8 to flag that the first 2 types of states are to be potentially resorted
+                        return 8, complete_sorted_1hole, complete_sorted_2holes
+                    else:
+                        print("\n There was an error while reading the state log files!!!")
+                        print("\n Ignoring the list of energy sorted states and trying to pick up from the last calculated states.")
+                        
+                        # All log flags shoud be valid, if not then we need to pick up the calculation from where it was stopped
+                        # In this case the first element is 3 to flag that the first 2 types of states are to be recalculated from where it stopped previously
+                        return 4, complete_1hole, complete_2holes, \
+                            last_calculated_cycle_1hole, last_calculated_cycle_2holes, \
+                            last_calculated_state_1hole, last_calculated_state_2holes
+        # Default case
+        else:
+            print("\n Unexpected combination of existing log files!!!")
+            print("\n Reverting to full calculation to make sure we have a uniform set of data...")
+            
+            return -1
+
+
 
 
 def checkOutput(currDir, currFileName):
@@ -4957,7 +5064,7 @@ def setupDirs():
 def setupFiles():
     global file_cycle_log_1hole, file_cycle_log_2holes, file_cycle_log_3holes, file_cycle_log_shakeup
     global file_sorted_1hole, file_sorted_2holes, file_sorted_3holes, file_sorted_shakeup
-    global file_calculated_radiative, file_calculated_auger, file_calculated_shakeoff, file_calculated_shakeup
+    global file_calculated_radiative, file_calculated_auger, file_calculated_shakeoff, file_calculated_shakeup, file_calculated_sat_auger
     global file_parameters, file_results, file_final_results
     global file_final_results_1hole, file_final_results_2holes, file_final_results_3holes, file_final_results_shakeup
     global file_rates, file_rates_auger, file_rates_shakeoff, file_rates_shakeup
@@ -4980,6 +5087,7 @@ def setupFiles():
     file_calculated_auger = rootDir + "/" + directory_name + "/" + directory_name + "_auger_calculated.txt"
     file_calculated_shakeoff = rootDir + "/" + directory_name + "/" + directory_name + "_shakeoff_calculated.txt"
     file_calculated_shakeup = rootDir + "/" + directory_name + "/" + directory_name + "_shakeup_calculated.txt"
+    file_calculated_sat_auger = rootDir + "/" + directory_name + "/" + directory_name + "_sat_auger_calculated.txt"
     
     file_parameters = rootDir + "/" + directory_name + "/calculation_parameters.txt"
     file_results = rootDir + "/" + directory_name + "/" + directory_name + "_results_all_cicles.txt"
