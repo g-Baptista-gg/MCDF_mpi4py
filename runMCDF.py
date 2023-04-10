@@ -3177,6 +3177,17 @@ def calculate3holesStates(starting_cycle = -1, starting_state = [(0, 0, 0)]):
     writeResults3holes()
 
 
+def checkMonopolar(i, jj):
+    # Unpack the state quantum numbers from the calculated list
+    states_1hole = calculated1holeStates[:][0]
+    
+    # If the 2j value exists in the 1 hole configurations for shell i, there will be a calculation for eigv = 1
+    if (i, jj, 1) in states_1hole:
+        return True
+    else:
+        return False
+
+
 def calculateShakeupStates(starting_cycle = -1, starting_state = [(0, 0, 0)]):
     global calculatedShakeupStates, shakeup_by_hand
     
@@ -3217,6 +3228,10 @@ def calculateShakeupStates(starting_cycle = -1, starting_state = [(0, 0, 0)]):
                         maxJJi = int(line.split("!!!!! For state # 1 and configuration   1 highest 2Jz possible value is")[1].split()[0].strip())
             
             for jj in range(0 if maxJJi % 2 == 0 else 1, maxJJi + 1, 2):
+                # Filter for monopolar excitations
+                if not checkMonopolar(i, jj):
+                    continue
+                
                 jj_vals.append((i, jj))
                 
                 currDir = rootDir + "/" + directory_name + "/shakeup/" + shell_array_shakeup[i] + "/2jj_" + str(jj)
@@ -5564,6 +5579,14 @@ if __name__ == "__main__":
         if type_calc == "All" or type_calc == "rates_all":
             rates_satellite()
             satellite_done = True
+            
+            if calculate_3holes:
+                rates_satellite_auger()
+                sat_aug_done = True
+            if calculate_shakeup:
+                rates_shakeup()
+                shakeup_done = True
+            
     elif redo_transitions:
         type_calc = midPrompt(True)
         
