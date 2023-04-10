@@ -209,6 +209,10 @@ calculatedAugerTransitions = []
 calculatedSatelliteTransitions = []
 # List of calculated shake-up transitions and their energy, rate and multipoles
 calculatedShakeupTransitions = []
+# Index value in the list of shake-up transitions where the final state swaps to 1 hole states
+shakeup_swap_combCnt = 0
+# List of calculated satellite auger transitions and their energy and rate
+calculatedSatelliteAugerTransitions = []
 
 
 # -------------------------------------------------------- #
@@ -3979,7 +3983,7 @@ def rates_auger(starting_transition = [(0, 0, 0), (0, 0, 0)]):
                 
                 combCnt += 1
     
-    
+
 
 
 def rates_satellite(starting_transition = [(0, 0, 0), (0, 0, 0)]):
@@ -4101,6 +4105,409 @@ def rates_satellite(starting_transition = [(0, 0, 0), (0, 0, 0)]):
                                 '\t'.join(['\t'.join(pole) for pole in multipole_array[combCnt]]) + "\n")
                 
                 combCnt += 1
+
+
+
+def rates_satellite_auger(starting_transition = [(0, 0, 0), (0, 0, 0)]):
+    global calculatedSatelliteAugerTransitions
+    
+    
+    calculatedSatelliteAugerTransitions = []
+    
+    parallel_initial_src_paths = []
+    parallel_initial_dst_paths = []
+    parallel_final_src_paths = []
+    parallel_final_dst_paths = []
+    
+    parallel_transition_paths = []
+
+
+    found_starting = False
+
+    combCnt = 0
+    for state_i in calculated2holesStates:
+        welt_i = state_i[1][-1]
+        
+        for state_f in calculated3holesStates:
+            energy_diff = welt_i - state_f[1][-1]
+            
+            if energy_diff <= 0:
+                break
+            
+            i, jj_i, eigv_i = state_i[0]
+            f, jj_f, eigv_f = state_f[0]
+            
+            calculatedSatelliteAugerTransitions.append([(i, jj_i, eigv_i), (f, jj_f, eigv_f)])
+            
+            if starting_transition == [(0, 0, 0), (0, 0, 0)] or found_starting:
+                currDir = rootDir + "/" + directory_name + "/transitions/sat_auger/" + str(combCnt)
+                currFileName = str(combCnt)
+                
+                currDir_i = rootDir + "/" + directory_name + "/auger/" + shell_array_2holes[i] + "/2jj_" + str(jj_i) + "/eigv_" + str(eigv_i)
+                currFileName_i = shell_array_2holes[i] + "_" + str(jj_i) + "_" + str(eigv_i)
+                
+                currDir_f = rootDir + "/" + directory_name + "/3holes/" + shell_array_3holes[f] + "/2jj_" + str(jj_f) + "/eigv_" + str(eigv_f)
+                currFileName_f = shell_array_3holes[f] + "_" + str(jj_f) + "_" + str(eigv_f)
+                
+                wfiFile, wffFile = configureTransitionInputFile(f05AugTemplate_nuc, \
+                                                                currDir, currFileName, \
+                                                                currDir_i, currFileName_i, \
+                                                                configuration_2holes[i], jj_i, eigv_i, str(int(nelectrons) - 1), \
+                                                                currDir_f, currFileName_f, \
+                                                                configuration_3holes[f], jj_f, eigv_f, str(int(nelectrons) - 2), \
+                                                                energy_diff)
+                
+                parallel_initial_src_paths.append(currDir_i + "/" + currFileName_i + ".f09")
+                parallel_final_src_paths.append(currDir_f + "/" + currFileName_f + ".f09")
+                
+                parallel_initial_dst_paths.append(currDir + "/" + wfiFile + ".f09")
+                parallel_final_dst_paths.append(currDir + "/" + wffFile + ".f09")
+                
+                parallel_transition_paths.append(currDir + "/" + exe_file)
+            
+            combCnt += 1
+            
+            if [state_i[0], state_f[0]] == starting_transition:
+                found_starting = True
+    
+    if len(parallel_transition_paths) > 0:
+        executeBatchTransitionCalculation(parallel_transition_paths, \
+                                        parallel_initial_src_paths, parallel_final_src_paths, \
+                                        parallel_initial_dst_paths, parallel_final_dst_paths, \
+                                        file_calculated_sat_auger, calculatedSatelliteAugerTransitions, "Calculated transitions:\n")
+    
+    
+    energies = []
+    rates = []
+    
+    total_rates = []
+    
+    combCnt = 0
+    for counter, state_i in enumerate(calculated2holesStates):
+        welt_i = state_i[1][-1]
+        
+        total_rates.append(0.0)
+        
+        for state_f in calculated3holesStates:
+            energy_diff = welt_i - state_f[1][-1]
+            
+            if energy_diff <= 0:
+                break
+            
+            i, jj_i, eigv_i = state_i[0]
+            f, jj_f, eigv_f = state_f[0]
+            
+            currDir = rootDir + "/" + directory_name + "/transitions/sat_auger/" + str(combCnt)
+            currFileName = str(combCnt)
+            
+            energy, rate = readTransition(currDir, currFileName, False)
+            
+            total_rates[counter] += float(rate)
+            
+            energies.append(energy)
+            rates.append(rate)
+            
+            combCnt += 1
+    
+    
+    # -------------- WRITE RESULTS TO THE FILES -------------- #
+    
+    with open(file_rates_sat_auger, "w") as sat_aug_rates:
+        sat_aug_rates.write("Calculated Satellite Auger Transitions\nTransition register\tShell IS\tIS Configuration\tIS 2JJ\tIS eigenvalue\tIS higher configuration\tIS percentage\tShell FS\tFS Configuration\tFS 2JJ\tFS eigenvalue\tFS higher configuration\tFS percentage\ttransition energy [eV]\trate [s-1]\ttotal rate from IS\tbranching ratio\n")
+        combCnt = 0
+        for counter, state_i in enumerate(calculated2holesStates):
+            welt_i = state_i[1][-1]
+            for state_f in calculated3holesStates:
+                energy_diff = welt_i - state_f[1][-1]
+            
+                if energy_diff <= 0:
+                    break
+                
+                i, jj_i, eigv_i = state_i[0]
+                f, jj_f, eigv_f = state_f[0]
+                
+                calculatedSatelliteAugerTransitions[combCnt].append((energies[combCnt], rates[combCnt], total_rates[counter]))
+                
+                
+                sat_aug_rates.write(str(combCnt) + "\t" + \
+                                    shell_array_2holes[i] + "\t" + \
+                                    configuration_2holes[i] + "\t" + \
+                                    str(jj_i) + "\t" + \
+                                    str(eigv_i) + "\t" + \
+                                    str(state_i[1][0]) + "\t" + \
+                                    str(state_i[1][1]) + "\t" + \
+                                    shell_array_3holes[f] + "\t" + \
+                                    configuration_3holes[f] + "\t" + \
+                                    str(jj_f) + "\t" + \
+                                    str(eigv_f) + "\t" + \
+                                    str(state_f[1][0]) + "\t" + \
+                                    str(state_f[1][1]) + "\t" + \
+                                    str(energies[combCnt]) + "\t" + \
+                                    str(rates[combCnt]) + "\t" + \
+                                    str(total_rates[counter]) + "\t" + \
+                                    (str(float(rate) / total_rates[counter]) if total_rates[counter] != 0.0 else "0.0") + "\n")
+                
+                combCnt += 1
+
+
+
+def rates_shakeup(starting_transition = [(0, 0, 0), (0, 0, 0)]):
+    global calculatedShakeupTransitions, shakeup_swap_combCnt
+    
+    
+    calculatedShakeupTransitions = []
+    
+    parallel_initial_src_paths = []
+    parallel_initial_dst_paths = []
+    parallel_final_src_paths = []
+    parallel_final_dst_paths = []
+    
+    parallel_transition_paths = []
+    
+    
+    found_starting = False
+    
+    swap_combCnt = 0
+    
+    combCnt = 0
+    for state_i in calculatedShakeupStates:
+        welt_i = state_i[1][-1]
+        
+        for state_f in calculatedShakeupStates:
+            energy_diff = welt_i - state_f[1][-1]
+            
+            if energy_diff <= 0:
+                break
+            
+            i, jj_i, eigv_i = state_i[0]
+            f, jj_f, eigv_f = state_f[0]
+            
+            calculatedShakeupTransitions.append([(i, jj_i, eigv_i), (f, jj_f, eigv_f)])
+            
+            if starting_transition == [(0, 0, 0), (0, 0, 0)] or found_starting:
+                currDir = rootDir + "/" + directory_name + "/transitions/shakeup/" + str(combCnt)
+                currFileName = str(combCnt)
+                
+                currDir_i = rootDir + "/" + directory_name + "/shakeup/" + shell_array_shakeup[i] + "/2jj_" + str(jj_i) + "/eigv_" + str(eigv_i)
+                currFileName_i = shell_array_shakeup[i] + "_" + str(jj_i) + "_" + str(eigv_i)
+                
+                currDir_f = rootDir + "/" + directory_name + "/shakeup/" + shell_array_shakeup[f] + "/2jj_" + str(jj_f) + "/eigv_" + str(eigv_f)
+                currFileName_f = shell_array_shakeup[f] + "_" + str(jj_f) + "_" + str(eigv_f)
+                
+                wfiFile, wffFile = configureTransitionInputFile(f05AugTemplate_nuc, \
+                                                                currDir, currFileName, \
+                                                                currDir_i, currFileName_i, \
+                                                                configuration_shakeup[i], jj_i, eigv_i, nelectrons, \
+                                                                currDir_f, currFileName_f, \
+                                                                configuration_shakeup[f], jj_f, eigv_f, nelectrons, \
+                                                                energy_diff)
+                
+                parallel_initial_src_paths.append(currDir_i + "/" + currFileName_i + ".f09")
+                parallel_final_src_paths.append(currDir_f + "/" + currFileName_f + ".f09")
+                
+                parallel_initial_dst_paths.append(currDir + "/" + wfiFile + ".f09")
+                parallel_final_dst_paths.append(currDir + "/" + wffFile + ".f09")
+                
+                parallel_transition_paths.append(currDir + "/" + exe_file)
+            
+            combCnt += 1
+            
+            if [state_i[0], state_f[0]] == starting_transition:
+                found_starting = True
+    
+    if len(parallel_transition_paths) > 0:
+        executeBatchTransitionCalculation(parallel_transition_paths, \
+                                        parallel_initial_src_paths, parallel_final_src_paths, \
+                                        parallel_initial_dst_paths, parallel_final_dst_paths, \
+                                        file_calculated_shakeup, calculatedShakeupTransitions, "Calculated transitions:\n")
+    
+    
+    shakeup_swap_combCnt = combCnt
+    
+    for state_i in calculatedShakeupStates:
+        welt_i = state_i[1][-1]
+        
+        for state_f in calculated1holeStates:
+            energy_diff = welt_i - state_f[1][-1]
+            
+            if energy_diff <= 0:
+                break
+            
+            i, jj_i, eigv_i = state_i[0]
+            f, jj_f, eigv_f = state_f[0]
+            
+            calculatedShakeupTransitions.append([(i, jj_i, eigv_i), (f, jj_f, eigv_f)])
+            
+            if starting_transition == [(0, 0, 0), (0, 0, 0)] or found_starting:
+                currDir = rootDir + "/" + directory_name + "/transitions/shakeup/" + str(combCnt)
+                currFileName = str(combCnt)
+                
+                currDir_i = rootDir + "/" + directory_name + "/shakeup/" + shell_array_shakeup[i] + "/2jj_" + str(jj_i) + "/eigv_" + str(eigv_i)
+                currFileName_i = shell_array_shakeup[i] + "_" + str(jj_i) + "_" + str(eigv_i)
+                
+                currDir_f = rootDir + "/" + directory_name + "/radiative/" + shell_array[f] + "/2jj_" + str(jj_f) + "/eigv_" + str(eigv_f)
+                currFileName_f = shell_array[f] + "_" + str(jj_f) + "_" + str(eigv_f)
+                
+                wfiFile, wffFile = configureTransitionInputFile(f05AugTemplate_nuc, \
+                                                                currDir, currFileName, \
+                                                                currDir_i, currFileName_i, \
+                                                                configuration_shakeup[i], jj_i, eigv_i, nelectrons, \
+                                                                currDir_f, currFileName_f, \
+                                                                configuration_1hole[f], jj_f, eigv_f, nelectrons, \
+                                                                energy_diff)
+                
+                parallel_initial_src_paths.append(currDir_i + "/" + currFileName_i + ".f09")
+                parallel_final_src_paths.append(currDir_f + "/" + currFileName_f + ".f09")
+                
+                parallel_initial_dst_paths.append(currDir + "/" + wfiFile + ".f09")
+                parallel_final_dst_paths.append(currDir + "/" + wffFile + ".f09")
+                
+                parallel_transition_paths.append(currDir + "/" + exe_file)
+            
+            combCnt += 1
+            
+            if [state_i[0], state_f[0]] == starting_transition:
+                found_starting = True
+    
+    if len(parallel_transition_paths) > 0:
+        executeBatchTransitionCalculation(parallel_transition_paths, \
+                                        parallel_initial_src_paths, parallel_final_src_paths, \
+                                        parallel_initial_dst_paths, parallel_final_dst_paths, \
+                                        file_calculated_shakeup, calculatedShakeupTransitions, "Calculated transitions:\n")
+    
+    
+    energies = []
+    rates = []
+    
+    total_rates = []
+    
+    combCnt = 0
+    for counter, state_i in enumerate(calculatedShakeupStates):
+        welt_i = state_i[1][-1]
+        
+        total_rates.append(0.0)
+        
+        for state_f in calculatedShakeupStates:
+            energy_diff = welt_i - state_f[1][-1]
+            
+            if energy_diff <= 0:
+                break
+            
+            i, jj_i, eigv_i = state_i[0]
+            f, jj_f, eigv_f = state_f[0]
+            
+            currDir = rootDir + "/" + directory_name + "/transitions/shakeup/" + str(combCnt)
+            currFileName = str(combCnt)
+            
+            energy, rate = readTransition(currDir, currFileName, False)
+            
+            total_rates[counter] += float(rate)
+            
+            energies.append(energy)
+            rates.append(rate)
+            
+            combCnt += 1
+    
+    for counter, state_i in enumerate(calculatedShakeupStates):
+        welt_i = state_i[1][-1]
+        
+        total_rates.append(0.0)
+        
+        for state_f in calculated1holeStates:
+            energy_diff = welt_i - state_f[1][-1]
+            
+            if energy_diff <= 0:
+                break
+            
+            i, jj_i, eigv_i = state_i[0]
+            f, jj_f, eigv_f = state_f[0]
+            
+            currDir = rootDir + "/" + directory_name + "/transitions/shakeup/" + str(combCnt)
+            currFileName = str(combCnt)
+            
+            energy, rate = readTransition(currDir, currFileName, False)
+            
+            total_rates[counter] += float(rate)
+            
+            energies.append(energy)
+            rates.append(rate)
+            
+            combCnt += 1
+    
+    
+    # -------------- WRITE RESULTS TO THE FILES -------------- #
+    
+    with open(file_rates_shakeup, "w") as shakeup_rates:
+        shakeup_rates.write("Calculated Shake-up Transitions\nTransition register\tShell IS\tIS Configuration\tIS 2JJ\tIS eigenvalue\tIS higher configuration\tIS percentage\tShell FS\tFS Configuration\tFS 2JJ\tFS eigenvalue\tFS higher configuration\tFS percentage\ttransition energy [eV]\trate [s-1]\ttotal rate from IS\tbranching ratio\n")
+        combCnt = 0
+        for counter, state_i in enumerate(calculatedShakeupStates):
+            welt_i = state_i[1][-1]
+            for state_f in calculatedShakeupStates:
+                energy_diff = welt_i - state_f[1][-1]
+            
+                if energy_diff <= 0:
+                    break
+                
+                i, jj_i, eigv_i = state_i[0]
+                f, jj_f, eigv_f = state_f[0]
+                
+                calculatedShakeupTransitions[combCnt].append((energies[combCnt], rates[combCnt], total_rates[counter]))
+                
+                
+                shakeup_rates.write(str(combCnt) + "\t" + \
+                                    shell_array_shakeup[i] + "\t" + \
+                                    configuration_shakeup[i] + "\t" + \
+                                    str(jj_i) + "\t" + \
+                                    str(eigv_i) + "\t" + \
+                                    str(state_i[1][0]) + "\t" + \
+                                    str(state_i[1][1]) + "\t" + \
+                                    shell_array_shakeup[f] + "\t" + \
+                                    configuration_shakeup[f] + "\t" + \
+                                    str(jj_f) + "\t" + \
+                                    str(eigv_f) + "\t" + \
+                                    str(state_f[1][0]) + "\t" + \
+                                    str(state_f[1][1]) + "\t" + \
+                                    str(energies[combCnt]) + "\t" + \
+                                    str(rates[combCnt]) + "\t" + \
+                                    str(total_rates[counter]) + "\t" + \
+                                    (str(float(rate) / total_rates[counter]) if total_rates[counter] != 0.0 else "0.0") + "\n")
+                
+                combCnt += 1
+        
+        for counter, state_i in enumerate(calculatedShakeupStates):
+            welt_i = state_i[1][-1]
+            for state_f in calculated1holeStates:
+                energy_diff = welt_i - state_f[1][-1]
+            
+                if energy_diff <= 0:
+                    break
+                
+                i, jj_i, eigv_i = state_i[0]
+                f, jj_f, eigv_f = state_f[0]
+                
+                calculatedShakeupTransitions[combCnt].append((energies[combCnt], rates[combCnt], total_rates[counter]))
+                
+                
+                shakeup_rates.write(str(combCnt) + "\t" + \
+                                    shell_array_shakeup[i] + "\t" + \
+                                    configuration_shakeup[i] + "\t" + \
+                                    str(jj_i) + "\t" + \
+                                    str(eigv_i) + "\t" + \
+                                    str(state_i[1][0]) + "\t" + \
+                                    str(state_i[1][1]) + "\t" + \
+                                    shell_array[f] + "\t" + \
+                                    configuration_1hole[f] + "\t" + \
+                                    str(jj_f) + "\t" + \
+                                    str(eigv_f) + "\t" + \
+                                    str(state_f[1][0]) + "\t" + \
+                                    str(state_f[1][1]) + "\t" + \
+                                    str(energies[combCnt]) + "\t" + \
+                                    str(rates[combCnt]) + "\t" + \
+                                    str(total_rates[counter]) + "\t" + \
+                                    (str(float(rate) / total_rates[counter]) if total_rates[counter] != 0.0 else "0.0") + "\n")
+                
+                combCnt += 1
+
 
 
 
@@ -5316,6 +5723,11 @@ if __name__ == "__main__":
         setupDirs()
         setupFiles()
         setupElectronConfigs()
+        
+        if calculate_3holes:
+            os.mkdir(directory_name + "/3holes")
+        if calculate_shakeup:
+            os.mkdir(directory_name + "/shakeup")
         
         writeCalculationParameters()
     else:
