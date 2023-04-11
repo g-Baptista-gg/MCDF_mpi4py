@@ -131,6 +131,7 @@ file_rates_sums_shakeup = ''
 file_level_widths = ''
 file_level_widths_shakeoff = ''
 file_level_widths_shakeup = ''
+file_level_widths_sat_auger = ''
 
 
 # ------------------------------------------------------------------ #
@@ -3670,6 +3671,18 @@ def sortCalculatedStates():
     
     
     if calculate_shakeup:
+        global shell_array_shakeup, configuration_shakeup
+        
+        shell_array_shakeup += shell_array
+        configuration_shakeup += configuration_1hole
+        
+        states_to_combine = calculated1holeStates[:]
+        
+        for i, state in enumerate(states_to_combine):
+            states_to_combine[i][0][0] = state[0][0] + len(shell_array_shakeup)
+        
+        calculatedShakeupStates += states_to_combine
+        
         calculatedShakeupStates.sort(key = lambda x: x[1][-1])
         
         with open(file_sorted_shakeup, "w") as sorted_shakeup:
@@ -4252,7 +4265,7 @@ def rates_satellite_auger(starting_transition = [(0, 0, 0), (0, 0, 0)]):
 
 
 def rates_shakeup(starting_transition = [(0, 0, 0), (0, 0, 0)]):
-    global calculatedShakeupTransitions, shakeup_swap_combCnt
+    global calculatedShakeupTransitions
     
     
     calculatedShakeupTransitions = []
@@ -4270,15 +4283,8 @@ def rates_shakeup(starting_transition = [(0, 0, 0), (0, 0, 0)]):
     swap_combCnt = 0
     
     combCnt = 0
-    for state_i in calculatedShakeupStates:
-        welt_i = state_i[1][-1]
-        
-        for state_f in calculatedShakeupStates:
-            energy_diff = welt_i - state_f[1][-1]
-            
-            if energy_diff <= 0:
-                break
-            
+    for counter, state_f in enumerate(calculatedShakeupStates):
+        for state_i in calculatedShakeupStates[(counter + 1):]:
             i, jj_i, eigv_i = state_i[0]
             f, jj_f, eigv_f = state_f[0]
             
@@ -4322,196 +4328,72 @@ def rates_shakeup(starting_transition = [(0, 0, 0), (0, 0, 0)]):
                                         file_calculated_shakeup, calculatedShakeupTransitions, "Calculated transitions:\n")
     
     
-    shakeup_swap_combCnt = combCnt
-    
-    for state_i in calculatedShakeupStates:
-        welt_i = state_i[1][-1]
-        
-        for state_f in calculated1holeStates:
-            energy_diff = welt_i - state_f[1][-1]
-            
-            if energy_diff <= 0:
-                break
-            
-            i, jj_i, eigv_i = state_i[0]
-            f, jj_f, eigv_f = state_f[0]
-            
-            calculatedShakeupTransitions.append([(i, jj_i, eigv_i), (f, jj_f, eigv_f)])
-            
-            if starting_transition == [(0, 0, 0), (0, 0, 0)] or found_starting:
-                currDir = rootDir + "/" + directory_name + "/transitions/shakeup/" + str(combCnt)
-                currFileName = str(combCnt)
-                
-                currDir_i = rootDir + "/" + directory_name + "/shakeup/" + shell_array_shakeup[i] + "/2jj_" + str(jj_i) + "/eigv_" + str(eigv_i)
-                currFileName_i = shell_array_shakeup[i] + "_" + str(jj_i) + "_" + str(eigv_i)
-                
-                currDir_f = rootDir + "/" + directory_name + "/radiative/" + shell_array[f] + "/2jj_" + str(jj_f) + "/eigv_" + str(eigv_f)
-                currFileName_f = shell_array[f] + "_" + str(jj_f) + "_" + str(eigv_f)
-                
-                wfiFile, wffFile = configureTransitionInputFile(f05AugTemplate_nuc, \
-                                                                currDir, currFileName, \
-                                                                currDir_i, currFileName_i, \
-                                                                configuration_shakeup[i], jj_i, eigv_i, nelectrons, \
-                                                                currDir_f, currFileName_f, \
-                                                                configuration_1hole[f], jj_f, eigv_f, nelectrons, \
-                                                                energy_diff)
-                
-                parallel_initial_src_paths.append(currDir_i + "/" + currFileName_i + ".f09")
-                parallel_final_src_paths.append(currDir_f + "/" + currFileName_f + ".f09")
-                
-                parallel_initial_dst_paths.append(currDir + "/" + wfiFile + ".f09")
-                parallel_final_dst_paths.append(currDir + "/" + wffFile + ".f09")
-                
-                parallel_transition_paths.append(currDir + "/" + exe_file)
-            
-            combCnt += 1
-            
-            if [state_i[0], state_f[0]] == starting_transition:
-                found_starting = True
-    
-    if len(parallel_transition_paths) > 0:
-        executeBatchTransitionCalculation(parallel_transition_paths, \
-                                        parallel_initial_src_paths, parallel_final_src_paths, \
-                                        parallel_initial_dst_paths, parallel_final_dst_paths, \
-                                        file_calculated_shakeup, calculatedShakeupTransitions, "Calculated transitions:\n")
-    
-    
     energies = []
     rates = []
+    multipole_array = []
     
-    total_rates = []
+    total_rates = dict.fromkeys([state[0] for state in calculatedShakeupStates], 0.0)
     
     combCnt = 0
-    for counter, state_i in enumerate(calculatedShakeupStates):
-        welt_i = state_i[1][-1]
-        
-        total_rates.append(0.0)
-        
-        for state_f in calculatedShakeupStates:
-            energy_diff = welt_i - state_f[1][-1]
-            
-            if energy_diff <= 0:
-                break
-            
+    for counter, state_f in enumerate(calculatedShakeupStates):
+        for state_i in calculatedShakeupStates[(counter + 1):]:
             i, jj_i, eigv_i = state_i[0]
             f, jj_f, eigv_f = state_f[0]
             
             currDir = rootDir + "/" + directory_name + "/transitions/shakeup/" + str(combCnt)
             currFileName = str(combCnt)
             
-            energy, rate = readTransition(currDir, currFileName, False)
+            energy, rate, multipoles = readTransition(currDir, currFileName)
             
-            total_rates[counter] += float(rate)
+            total_rates[state_i[0]] += float(rate)
             
             energies.append(energy)
             rates.append(rate)
+            multipole_array.append(multipoles)
             
             combCnt += 1
     
-    for counter, state_i in enumerate(calculatedShakeupStates):
-        welt_i = state_i[1][-1]
-        
-        total_rates.append(0.0)
-        
-        for state_f in calculated1holeStates:
-            energy_diff = welt_i - state_f[1][-1]
-            
-            if energy_diff <= 0:
-                break
-            
-            i, jj_i, eigv_i = state_i[0]
-            f, jj_f, eigv_f = state_f[0]
-            
-            currDir = rootDir + "/" + directory_name + "/transitions/shakeup/" + str(combCnt)
-            currFileName = str(combCnt)
-            
-            energy, rate = readTransition(currDir, currFileName, False)
-            
-            total_rates[counter] += float(rate)
-            
-            energies.append(energy)
-            rates.append(rate)
-            
-            combCnt += 1
     
     
     # -------------- WRITE RESULTS TO THE FILES -------------- #
     
     with open(file_rates_shakeup, "w") as shakeup_rates:
-        shakeup_rates.write("Calculated Shake-up Transitions\nTransition register\tShell IS\tIS Configuration\tIS 2JJ\tIS eigenvalue\tIS higher configuration\tIS percentage\tShell FS\tFS Configuration\tFS 2JJ\tFS eigenvalue\tFS higher configuration\tFS percentage\ttransition energy [eV]\trate [s-1]\ttotal rate from IS\tbranching ratio\n")
+        shakeup_rates.write("Calculated Satellite Transitions\nTransition register\tShell IS\tIS Configuration\tIS 2JJ\tIS eigenvalue\tIS higher configuration\tIS percentage\tShell FS\tFS Configuration\tFS 2JJ\tFS eigenvalue\tFS higher configuration\tFS percentage\ttransition energy [eV]\trate [s-1]\tnumber multipoles\ttotal rate from IS\tbranching ratio\n")
         combCnt = 0
-        for counter, state_i in enumerate(calculatedShakeupStates):
-            welt_i = state_i[1][-1]
-            for state_f in calculatedShakeupStates:
-                energy_diff = welt_i - state_f[1][-1]
-            
-                if energy_diff <= 0:
-                    break
-                
+        for counter, state_f in enumerate(calculatedShakeupStates):
+            for state_i in calculatedShakeupStates[(counter + 1):]:
                 i, jj_i, eigv_i = state_i[0]
                 f, jj_f, eigv_f = state_f[0]
                 
-                calculatedShakeupTransitions[combCnt].append((energies[combCnt], rates[combCnt], total_rates[counter]))
+                calculatedShakeupTransitions[combCnt].append((energies[combCnt], rates[combCnt], total_rates[state_i[0]], multipole_array[combCnt]))
                 
                 
                 shakeup_rates.write(str(combCnt) + "\t" + \
-                                    shell_array_shakeup[i] + "\t" + \
-                                    configuration_shakeup[i] + "\t" + \
-                                    str(jj_i) + "\t" + \
-                                    str(eigv_i) + "\t" + \
-                                    str(state_i[1][0]) + "\t" + \
-                                    str(state_i[1][1]) + "\t" + \
-                                    shell_array_shakeup[f] + "\t" + \
-                                    configuration_shakeup[f] + "\t" + \
-                                    str(jj_f) + "\t" + \
-                                    str(eigv_f) + "\t" + \
-                                    str(state_f[1][0]) + "\t" + \
-                                    str(state_f[1][1]) + "\t" + \
-                                    str(energies[combCnt]) + "\t" + \
-                                    str(rates[combCnt]) + "\t" + \
-                                    str(total_rates[counter]) + "\t" + \
-                                    (str(float(rate) / total_rates[counter]) if total_rates[counter] != 0.0 else "0.0") + "\n")
-                
-                combCnt += 1
-        
-        for counter, state_i in enumerate(calculatedShakeupStates):
-            welt_i = state_i[1][-1]
-            for state_f in calculated1holeStates:
-                energy_diff = welt_i - state_f[1][-1]
-            
-                if energy_diff <= 0:
-                    break
-                
-                i, jj_i, eigv_i = state_i[0]
-                f, jj_f, eigv_f = state_f[0]
-                
-                calculatedShakeupTransitions[combCnt].append((energies[combCnt], rates[combCnt], total_rates[counter]))
-                
-                
-                shakeup_rates.write(str(combCnt) + "\t" + \
-                                    shell_array_shakeup[i] + "\t" + \
-                                    configuration_shakeup[i] + "\t" + \
-                                    str(jj_i) + "\t" + \
-                                    str(eigv_i) + "\t" + \
-                                    str(state_i[1][0]) + "\t" + \
-                                    str(state_i[1][1]) + "\t" + \
-                                    shell_array[f] + "\t" + \
-                                    configuration_1hole[f] + "\t" + \
-                                    str(jj_f) + "\t" + \
-                                    str(eigv_f) + "\t" + \
-                                    str(state_f[1][0]) + "\t" + \
-                                    str(state_f[1][1]) + "\t" + \
-                                    str(energies[combCnt]) + "\t" + \
-                                    str(rates[combCnt]) + "\t" + \
-                                    str(total_rates[counter]) + "\t" + \
-                                    (str(float(rate) / total_rates[counter]) if total_rates[counter] != 0.0 else "0.0") + "\n")
+                                shell_array_2holes[i] + "\t" + \
+                                configuration_2holes[i] + "\t" + \
+                                str(jj_i) + "\t" + \
+                                str(eigv_i) + "\t" + \
+                                str(state_i[1][0]) + "\t" + \
+                                str(state_i[1][1]) + "\t" + \
+                                shell_array_2holes[f] + "\t" + \
+                                configuration_2holes[f] + "\t" + \
+                                str(jj_f) + "\t" + \
+                                str(eigv_f) + "\t" + \
+                                str(state_f[1][0]) + "\t" + \
+                                str(state_f[1][1]) + "\t" + \
+                                str(energies[combCnt]) + "\t" + \
+                                str(rates[combCnt]) + "\t" + \
+                                str(len(multipole_array[combCnt])) + "\t" + \
+                                str(total_rates[state_i[0]]) + "\t" + \
+                                (str(float(rate) / total_rates[state_i[0]]) if total_rates[state_i[0]] != 0.0 else "0.0") + "\t" + \
+                                '\t'.join(['\t'.join(pole) for pole in multipole_array[combCnt]]) + "\n")
                 
                 combCnt += 1
 
 
 
 
-def calculateSpectra(radiative_done, auger_done, satellite_done):
+def calculateSpectra(radiative_done, auger_done, satellite_done, sat_aug_done, shakeup_done):
     print("############ Calculating the sums ###################")
     
 
@@ -4572,30 +4454,97 @@ def calculateSpectra(radiative_done, auger_done, satellite_done):
     for transition in calculatedSatelliteTransitions:
         state_i, state_f, pars = transition
         
-        multiplicity_JJ_sat[state_i[0]] += state_i[1] + 1
-        
         radiative_rate_per_shell_sat[state_i[0]] += float(pars[1]) * (state_i[1] + 1)
     
     
-    with open(file_rates_sums_shakeoff, "w") as rates_sums_sat:
-        for k in range(len(shell_array_2holes)):
-            rates_sums_sat.write(shell_array_2holes[k] + "\n")
-            rates_sums_sat.write("multiplicity of states = " + str(multiplicity_JJ_sat[k]) + "\n")
-            rates_sums_sat.write("radiative * multiplicity of states = " + str(radiative_rate_per_shell_sat[k]) + "\n")
-            rates_sums_sat.write("\n\n")
+    if calculate_3holes:
+        auger_rate_per_shell_sat = [0.0] * len(shell_array_3holes)
+        
+        for transition in calculatedSatelliteAugerTransitions:
+            state_i, state_f, pars = transition
+            
+            auger_rate_per_shell_sat[state_i[0]] += float(pars[1]) * (state_i[1] + 1)
+    
+    
+        fluorescenceyield_sat = []
+        
+        with open(file_rates_sums_shakeoff, "w") as rates_sums_sat:
+            for k in range(len(shell_array_2holes)):
+                fluorescenceyield_sat.append(radiative_rate_per_shell_sat[k] / (auger_rate_per_shell_sat[k] + radiative_rate_per_shell_sat[k]))
+                print("Fluorescence Yield for " + shell_array_2holes[k] + " = radiative (" + str(radiative_rate_per_shell_sat[k]) + ") / radiative (" + str(radiative_rate_per_shell_sat[k]) + ") + auger (" + str(auger_rate_per_shell_sat[k]) + ") = " + str(fluorescenceyield_sat[k]))
+                rates_sums_sat.write(shell_array_2holes[k] + "\n\n")
+                rates_sums_sat.write("multiplicity of states = " + str(multiplicity_JJ_sat[k]) + "\n")
+                rates_sums_sat.write("radiative * multiplicity of states = " + str(radiative_rate_per_shell_sat[k]) + "\n")
+                rates_sums_sat.write("auger * multiplicity of states = " + str(auger_rate_per_shell_sat[k]) + "\n")
+                rates_sums_sat.write("Fluorescence Yield  = " + str(fluorescenceyield_sat[k]) + "\n")
+                rates_sums_sat.write("\n\n\n")
+    else:
+        with open(file_rates_sums_shakeoff, "w") as rates_sums_sat:
+            for k in range(len(shell_array_2holes)):
+                rates_sums_sat.write(shell_array_2holes[k] + "\n")
+                rates_sums_sat.write("multiplicity of states = " + str(multiplicity_JJ_sat[k]) + "\n")
+                rates_sums_sat.write("radiative * multiplicity of states = " + str(radiative_rate_per_shell_sat[k]) + "\n")
+                rates_sums_sat.write("\n\n")
 	
 	
 	print("JJ multiplicity/shell sat == " + ', '.join([str(jj) for jj in multiplicity_JJ_sat]) + "\n")
 	
-
+    
+    if calculate_shakeup:
+        print("\nCalculating shell rates and multiplicities for shake-ups...\n")
+        
+        multiplicity_JJ_shakeup = [0] * len(shell_array_shakeup)
+        
+        radiative_rate_per_shell_shakeup = [0.0] * len(shell_array_shakeup)
+        
+        for state in calculatedShakeupStates:
+            multiplicity_JJ_shakeup[state[0][0]] += state[0][1] + 1
+        
+        for transition in calculatedShakeupTransitions:
+            state_i, state_f, pars = transition
+            
+            radiative_rate_per_shell_shakeup[state_i[0]] += float(pars[1]) * (state_i[1] + 1)
+        
+        
+        with open(file_rates_sums_shakeup, "w") as rates_sums_shakeup:
+            for k in range(len(shell_array_shakeup)):
+                rates_sums_shakeup.write(shell_array_shakeup[k] + "\n")
+                rates_sums_shakeup.write("multiplicity of states = " + str(multiplicity_JJ_shakeup[k]) + "\n")
+                rates_sums_shakeup.write("radiative * multiplicity of states = " + str(radiative_rate_per_shell_shakeup[k]) + "\n")
+                rates_sums_shakeup.write("\n\n")
+        
+        
+        print("JJ multiplicity/shell shake-up == " + ', '.join([str(jj) for jj in multiplicity_JJ_shakeup]) + "\n")
+    
+    
     print("\nCalculating total level widths for diagram, auger and satellite transitions...\n")
+    
     
     rate_level_radiative = dict.fromkeys([state[0] for state in calculated1holeStates], 0.0)
     rate_level_auger = dict.fromkeys([state[0] for state in calculated1holeStates], 0.0)
     rate_level_radiative_sat = dict.fromkeys([state[0] for state in calculated2holesStates], 0.0)
     
+    if calculate_3holes:
+        rate_level_auger_sat = dict.fromkeys([state[0] for state in calculated2holesStates], 0.0)
+    if calculate_shakeup:
+        rate_level_radiative_shakeup = dict.fromkeys([state[0] for state in calculatedShakeupStates], 0.0)
+    
     rate_level = dict.fromkeys([state[0] for state in calculated1holeStates], 0.0)
     rate_level_ev = dict.fromkeys([state[0] for state in calculated1holeStates], 0.0)
+    
+    rate_level_sat = dict.fromkeys([state[0] for state in calculated2holesStates], 0.0)
+    rate_level_sat_ev = dict.fromkeys([state[0] for state in calculated2holesStates], 0.0)
+    
+    if calculate_3holes:
+        rate_level_sat_auger = dict.fromkeys([state[0] for state in calculated3holesStates], 0.0)
+        rate_level_sat_auger_ev = dict.fromkeys([state[0] for state in calculated3holesStates], 0.0)
+    
+    if calculate_shakeup:
+        rate_level_shakeup = dict.fromkeys([state[0] for state in calculatedShakeupStates], 0.0)
+        rate_level_shakeup_ev = dict.fromkeys([state[0] for state in calculatedShakeupStates], 0.0)
+    
+    
+    # Radiative and auger level widths
     
     for transition in calculatedRadiativeTransitions:
         state_i, state_f, pars = transition
@@ -4612,33 +4561,76 @@ def calculateSpectra(radiative_done, auger_done, satellite_done):
         rate_level_ev[state_i] = rate_level[state_i] * hbar
     
     
+    # Shake-off and shake-off auger widths
+    
     fluor_sat = dict.fromkeys([state[0] for state in calculated2holesStates], 0.0)
     shell_fl_dia = dict.fromkeys([state[0] for state in calculated2holesStates], 0.0)
-    rate_level_sat = dict.fromkeys([state[0] for state in calculated2holesStates], 0.0)
-    rate_level_sat_ev = dict.fromkeys([state[0] for state in calculated2holesStates], 0.0)
-    
     
     for transition in calculatedSatelliteTransitions:
         state_i, state_f, pars = transition
         
         rate_level_radiative_sat[state_i] += float(pars[1])
     
-    for transition in calculatedSatelliteTransitions:
-        state_i, state_f, pars = transition
-        
+    if calculate_3holes:
+        for transition in calculatedSatelliteAugerTransitions:
+            state_i, state_f, pars = transition
+            
+            rate_level_auger_sat[state_i] += float(pars[1])
+    
+    for state_i in rate_level_sat:
         shell_sat = shell_array_2holes[state_i[0]].split("_")
-        #print(" shell 2 holes =  " + shell_array_2holes[state_i[0]] + "\n")
         
-        #print(" shell 2 holes divided 1 = " + shell_sat[0] + "     2 = " + shell_sat[1] + "\n")
-    
-    
         k = shell_array.index(shell_sat[0])
         fluor_sat[state_i] = fluorescenceyield[k]
         shell_fl_dia[state_i] = shell_array[k]
         
-        rate_level_sat[state_i] = rate_level_radiative_sat[state_i] / fluorescenceyield[k]
+        if calculate_3holes:
+            rate_level_sat[state_i] = rate_level_radiative_sat[state_i] + rate_level_auger_sat[state_i]
+        else:
+            rate_level_sat[state_i] = rate_level_radiative_sat[state_i] / fluorescenceyield[k]
         
         rate_level_sat_ev[state_i] = rate_level_sat[state_i] * hbar
+    
+    
+    # Satellite auger widths
+    
+    if calculate_3holes:
+        fluor_3holes = dict.fromkeys([state[0] for state in calculated3holesStates], 0.0)
+        shell_fl_dia_3holes = dict.fromkeys([state[0] for state in calculated3holesStates], 0.0)
+    
+        for state_i in rate_level_sat_auger:
+            shell_sat_auger = shell_array_3holes[state_i[0]].split("_")
+            
+            k = shell_array.index(shell_sat_auger[0])
+            fluor_3holes[state_i] = fluorescenceyield[k]
+            shell_fl_dia_3holes[state_i] = shell_array[k]
+            
+            rate_level_sat_auger[state_i] = rate_level_auger_sat[state_i] / fluorescenceyield[k]
+            rate_level_sat_auger_ev[state_i] = rate_level_sat_auger[state_i] * hbar
+    
+    
+    # Shake-up widths
+    
+    if calculate_shakeup:
+        fluor_shakeup = dict.fromkeys([state[0] for state in calculated2holesStates], 0.0)
+        shell_fl_dia_shakeup = dict.fromkeys([state[0] for state in calculated2holesStates], 0.0)
+    
+        for transition in calculatedShakeupTransitions:
+            state_i, state_f, pars = transition
+            
+            rate_level_radiative_shakeup[state_i] += float(pars[1])
+        
+        for state_i in rate_level_shakeup:
+            shell_shakeup = shell_array_shakeup[state_i[0]].split("_")
+            
+            k = shell_array.index(shell_shakeup[0])
+            fluor_shakeup[state_i] = fluorescenceyield[k]
+            shell_fl_dia_shakeup[state_i] = shell_array[k]
+            
+            rate_level_shakeup[state_i] = rate_level_radiative_shakeup[state_i] / fluorescenceyield[k]
+            
+            rate_level_shakeup_ev[state_i] = rate_level_shakeup[state_i] * hbar
+    
     
     
     print("############ Writing diagram level widths ###################")
@@ -4666,175 +4658,347 @@ def calculateSpectra(radiative_done, auger_done, satellite_done):
     print("############ Writing satellite level widths ###################")
     
     with open(file_level_widths_shakeoff, "w") as level_widths_sat:
-        level_widths_sat.write(" Transition register \t index sorted \t  Shell \t Configuration \t 2JJ \t eigenvalue \t radiative width [s-1] \t  total width [s-1] \t total width [eV] \n")
-        
-        for counter, state_i in enumerate(rate_level_sat):
-            i, jj_i, eigv_i = state_i
+        if calculate_3holes:
+            level_widths_sat.write(" Transition register \t  Shell \t Configuration \t 2JJ \t eigenvalue \t radiative width [s-1] \t  auger width [s-1] \t total width [s-1] \t total width [eV] \n")
             
-            #print("\nLevel " + str(counter) + " :  " + shell_array_2holes[i] + " " + configuration_2holes[i] + " 2J=" + str(jj_i) + " neig=" + str(eigv_i) + "\n")
-            #print("\tradiative width = " + str(rate_level_radiative_sat[state_i]) + " s-1 \t total width = " + str(rate_level_sat[state_i]) + " s-1 \t total width (eV) = " + str(rate_level_sat_ev[state_i]) + " eV \n")
-            
-            level_widths_sat.write(str(counter) + " \t  " + \
+            for counter, state_i in enumerate(rate_level_sat):
+                i, jj_i, eigv_i = state_i
+
+                #print("\nLevel " + str(counter) + " :  " + shell_array_2holes[i] + " " + configuration_2holes[i] + " 2J=" + str(jj_i) + " neig=" + str(eigv_i) + "\n")
+                #print("\tradiative width = " + str(rate_level_radiative_sat[state_i]) + " s-1 \t auger width = " + str(rate_level_auger_sat[state_i]) + " s-1 \t total width = " + str(rate_level_sat[state_i]) + " s-1 \t total width (eV) = " + str(rate_level_sat_ev[state_i]) + " eV \n")
+                
+                level_widths_sat.write(str(counter) + " \t " + \
                                    shell_array_2holes[i] + " \t " + \
                                    configuration_2holes[i] + " \t " + \
                                    str(jj_i) + " \t " + \
                                    str(eigv_i) + " \t " + \
                                    str(rate_level_radiative_sat[state_i]) + " \t " + \
+                                   str(rate_level_auger_sat[state_i]) + " \t " + \
                                    str(rate_level_sat[state_i]) + " \t " + \
-                                   str(rate_level_sat_ev[state_i]) + " \t " + \
-                                   str(shell_fl_dia[state_i]) + " \t " + \
-                                   str(fluor_sat[state_i]) + "\n")
+                                   str(rate_level_sat_ev[state_i]) + "\n")
+        else:
+            level_widths_sat.write(" Transition register \t index sorted \t  Shell \t Configuration \t 2JJ \t eigenvalue \t radiative width [s-1] \t  total width [s-1] \t total width [eV] \n")
+            
+            for counter, state_i in enumerate(rate_level_sat):
+                i, jj_i, eigv_i = state_i
+                
+                #print("\nLevel " + str(counter) + " :  " + shell_array_2holes[i] + " " + configuration_2holes[i] + " 2J=" + str(jj_i) + " neig=" + str(eigv_i) + "\n")
+                #print("\tradiative width = " + str(rate_level_radiative_sat[state_i]) + " s-1 \t total width = " + str(rate_level_sat[state_i]) + " s-1 \t total width (eV) = " + str(rate_level_sat_ev[state_i]) + " eV \n")
+                
+                level_widths_sat.write(str(counter) + " \t  " + \
+                                       shell_array_2holes[i] + " \t " + \
+                                       configuration_2holes[i] + " \t " + \
+                                       str(jj_i) + " \t " + \
+                                       str(eigv_i) + " \t " + \
+                                       str(rate_level_radiative_sat[state_i]) + " \t " + \
+                                       str(rate_level_sat[state_i]) + " \t " + \
+                                       str(rate_level_sat_ev[state_i]) + " \t " + \
+                                       str(shell_fl_dia[state_i]) + " \t " + \
+                                       str(fluor_sat[state_i]) + "\n")
     
+    
+    if calculate_3holes:
+        print("############ Writing satellite auger level widths ###################")
+        
+        with open(file_level_widths_sat_auger, "w") as level_widths_sat_auger:
+            level_widths_sat_auger.write(" Transition register \t index sorted \t  Shell \t Configuration \t 2JJ \t eigenvalue \t radiative width [s-1] \t  total width [s-1] \t total width [eV] \n")
+            
+            for counter, state_i in enumerate(rate_level_sat_auger):
+                i, jj_i, eigv_i = state_i
+                
+                #print("\nLevel " + str(counter) + " :  " + shell_array_3holes[i] + " " + configuration_3holes[i] + " 2J=" + str(jj_i) + " neig=" + str(eigv_i) + "\n")
+                #print("\tradiative width = " + str(rate_level_auger_sat[state_i]) + " s-1 \t total width = " + str(rate_level_sat_auger[state_i]) + " s-1 \t total width (eV) = " + str(rate_level_sat_auger_ev[state_i]) + " eV \n")
+                
+                level_widths_sat_auger.write(str(counter) + " \t  " + \
+                                       shell_array_3holes[i] + " \t " + \
+                                       configuration_3holes[i] + " \t " + \
+                                       str(jj_i) + " \t " + \
+                                       str(eigv_i) + " \t " + \
+                                       str(rate_level_auger_sat[state_i]) + " \t " + \
+                                       str(rate_level_sat_auger[state_i]) + " \t " + \
+                                       str(rate_level_sat_auger_ev[state_i]) + " \t " + \
+                                       str(shell_fl_dia_3holes[state_i]) + " \t " + \
+                                       str(fluor_3holes[state_i]) + "\n")
+    
+    
+    if calculate_shakeup:
+        print("############ Writing shake-up level widths ###################")
+        
+        with open(file_level_widths_shakeup, "w") as level_widths_shakeup:
+            level_widths_shakeup.write(" Transition register \t index sorted \t  Shell \t Configuration \t 2JJ \t eigenvalue \t radiative width [s-1] \t  total width [s-1] \t total width [eV] \n")
+            
+            for counter, state_i in enumerate(rate_level_shakeup):
+                i, jj_i, eigv_i = state_i
+                
+                #print("\nLevel " + str(counter) + " :  " + shell_array_shakeup[i] + " " + configuration_shakeup[i] + " 2J=" + str(jj_i) + " neig=" + str(eigv_i) + "\n")
+                #print("\tradiative width = " + str(rate_level_radiative_shakeup[state_i]) + " s-1 \t total width = " + str(rate_level_shakeup[state_i]) + " s-1 \t total width (eV) = " + str(rate_level_shakeup_ev[state_i]) + " eV \n")
+                
+                level_widths_shakeup.write(str(counter) + " \t  " + \
+                                           shell_array_shakeup[i] + " \t " + \
+                                           configuration_shakeup[i] + " \t " + \
+                                           str(jj_i) + " \t " + \
+                                           str(eigv_i) + " \t " + \
+                                           str(rate_level_radiative_shakeup[state_i]) + " \t " + \
+                                           str(rate_level_shakeup[state_i]) + " \t " + \
+                                           str(rate_level_shakeup_ev[state_i]) + " \t " + \
+                                           str(shell_fl_dia_shakeup[state_i]) + " \t " + \
+                                           str(fluor_shakeup[state_i]) + "\n")
 
     
     # -------------------- WRITE DIAGRAM SPECTRUM -------------------- #
     
-    inten_trans = []
-    intensity_ev = []
-    transition_width = []
-    
-    print("############ Writing diagram spectrum ###################")
-    
-    with open(file_rates_spectrum_diagram, "w") as spectrum_diagram:
-        spectrum_diagram.write("Transition register \t Shell IS \t IS Configuration \t IS 2JJ \t IS eigenvalue \t IS higher configuration \t IS percentage \t Shell FS \tFS Configuration \t FS 2JJ \t FS eigenvalue \t FS higher configuration \t FS percentage \t transition energy [eV] \t intensity \t intensity [eV] \t width [eV] \n")
-	
-        combCnt = 0
-        for counter, state_f in enumerate(calculated1holeStates):
-            for state_i in calculated1holeStates[(counter + 1):]:
-                i, jj_i, eigv_i = state_i[0]
-                f, jj_f, eigv_f = state_f[0]
-                
-                
-                inten_trans.append((float(jj_i + 1) / float(multiplicity_JJ[i])) * (float(calculatedRadiativeTransitions[combCnt][2][1]) / rate_level[state_i[0]]))
-                intensity_ev.append(inten_trans[-1] * float(calculatedRadiativeTransitions[combCnt][2][0]))
-                transition_width.append(rate_level_ev[state_i[0]] + rate_level_ev[state_f[0]])
+    if radiative_done:
+        inten_trans = []
+        intensity_ev = []
+        transition_width = []
+        
+        print("############ Writing diagram spectrum ###################")
+        
+        with open(file_rates_spectrum_diagram, "w") as spectrum_diagram:
+            spectrum_diagram.write("Transition register \t Shell IS \t IS Configuration \t IS 2JJ \t IS eigenvalue \t IS higher configuration \t IS percentage \t Shell FS \tFS Configuration \t FS 2JJ \t FS eigenvalue \t FS higher configuration \t FS percentage \t transition energy [eV] \t intensity \t intensity [eV] \t width [eV] \n")
+        
+            combCnt = 0
+            for counter, state_f in enumerate(calculated1holeStates):
+                for state_i in calculated1holeStates[(counter + 1):]:
+                    i, jj_i, eigv_i = state_i[0]
+                    f, jj_f, eigv_f = state_f[0]
+                    
+                    
+                    inten_trans.append((float(jj_i + 1) / float(multiplicity_JJ[i])) * (float(calculatedRadiativeTransitions[combCnt][2][1]) / rate_level[state_i[0]]))
+                    intensity_ev.append(inten_trans[-1] * float(calculatedRadiativeTransitions[combCnt][2][0]))
+                    transition_width.append(rate_level_ev[state_i[0]] + rate_level_ev[state_f[0]])
 
-                #print("\ntransition " + str(combCnt) + " : from " + configuration_1hole[i] + " 2J=" + str(jj_i) + " neig=" + str(eigv_i) + " -> " + configuration_1hole[f] + " 2J=" + str(jj_f) + " neig=" + str(eigv_f) + " = " + str(calculatedRadiativeTransitions[combCnt][2][1]) + " s-1  Energy = " + str(calculatedRadiativeTransitions[combCnt][2][0]) + " eV\n")
-                #print(" Width = initial state (" + str(rate_level_ev[state_i[0]]) + " eV) + final state (" + str(rate_level_ev[state_f[0]]) + " eV) = " + str(transition_width[-1]) + " eV\n")
+                    #print("\ntransition " + str(combCnt) + " : from " + configuration_1hole[i] + " 2J=" + str(jj_i) + " neig=" + str(eigv_i) + " -> " + configuration_1hole[f] + " 2J=" + str(jj_f) + " neig=" + str(eigv_f) + " = " + str(calculatedRadiativeTransitions[combCnt][2][1]) + " s-1  Energy = " + str(calculatedRadiativeTransitions[combCnt][2][0]) + " eV\n")
+                    #print(" Width = initial state (" + str(rate_level_ev[state_i[0]]) + " eV) + final state (" + str(rate_level_ev[state_f[0]]) + " eV) = " + str(transition_width[-1]) + " eV\n")
 
-                #print(" Intensity =  " + str(inten_trans[-1]) + "\n")
-                #print(str(jj_i) + " \t " + str(calculatedRadiativeTransitions[combCnt][2][1]) + " \t " + str(multiplicity_JJ[i]) + " \t " + str(rate_level[state_i[0]]) + "\n")
-                
-                spectrum_diagram.write(str(combCnt) + " \t " + \
-                                       shell_array[i] + " \t " + \
-                                       configuration_1hole[i] + " \t " + \
-                                       str(jj_i) + " \t " + \
-                                       str(eigv_i) + " \t " + \
-                                       str(state_i[1][0]) + " \t " + \
-                                       str(state_i[1][1]) + " \t " + \
-                                       shell_array[f] + " \t " + \
-                                       configuration_1hole[f] + " \t " + \
-                                       str(jj_f) + " \t " + \
-                                       str(eigv_f) + " \t " + \
-                                       configuration_1hole[f] + "  \t " + \
-                                       str(jj_f) + " \t " + \
-                                       str(calculatedRadiativeTransitions[combCnt][2][0]) + " \t " + \
-                                       str(inten_trans[-1]) + " \t " + \
-                                       str(intensity_ev[-1]) + " \t " + \
-                                       str(transition_width[-1]) + "\n")
-                
-                combCnt += 1
+                    #print(" Intensity =  " + str(inten_trans[-1]) + "\n")
+                    #print(str(jj_i) + " \t " + str(calculatedRadiativeTransitions[combCnt][2][1]) + " \t " + str(multiplicity_JJ[i]) + " \t " + str(rate_level[state_i[0]]) + "\n")
+                    
+                    spectrum_diagram.write(str(combCnt) + " \t " + \
+                                           shell_array[i] + " \t " + \
+                                           configuration_1hole[i] + " \t " + \
+                                           str(jj_i) + " \t " + \
+                                           str(eigv_i) + " \t " + \
+                                           str(state_i[1][0]) + " \t " + \
+                                           str(state_i[1][1]) + " \t " + \
+                                           shell_array[f] + " \t " + \
+                                           configuration_1hole[f] + " \t " + \
+                                           str(jj_f) + " \t " + \
+                                           str(eigv_f) + " \t " + \
+                                           configuration_1hole[f] + "  \t " + \
+                                           str(jj_f) + " \t " + \
+                                           str(calculatedRadiativeTransitions[combCnt][2][0]) + " \t " + \
+                                           str(inten_trans[-1]) + " \t " + \
+                                           str(intensity_ev[-1]) + " \t " + \
+                                           str(transition_width[-1]) + "\n")
+                    
+                    combCnt += 1
     
     
     # -------------------- WRITE AUGER SPECTRUM -------------------- #
     
-    inten_auger = []
-    intensity_auger_ev = []
-    transition_width_auger = []
-    
-    print("############ Writing auger spectrum ###################\n")
-    
-    with open(file_rates_spectrum_auger, "w") as spectrum_auger:
-        spectrum_auger.write("Transition register \t Shell IS \t IS Configuration \t IS 2JJ \t IS eigenvalue \t IS higher configuration \t IS percentage \t Shell FS \tFS Configuration \t FS 2JJ \t FS eigenvalue \t FS higher configuration \t FS percentage \t transition energy [eV] \t intensity \t intensity [eV] \t width [eV] \n")
+    if auger_done:
+        inten_auger = []
+        intensity_auger_ev = []
+        transition_width_auger = []
         
-        combCnt = 0
-        for state_i in calculated1holeStates:
-            welt_i = state_i[1][-1]
+        print("############ Writing auger spectrum ###################\n")
+        
+        with open(file_rates_spectrum_auger, "w") as spectrum_auger:
+            spectrum_auger.write("Transition register \t Shell IS \t IS Configuration \t IS 2JJ \t IS eigenvalue \t IS higher configuration \t IS percentage \t Shell FS \tFS Configuration \t FS 2JJ \t FS eigenvalue \t FS higher configuration \t FS percentage \t transition energy [eV] \t intensity \t intensity [eV] \t width [eV] \n")
             
-            for state_f in calculated2holesStates:
-                energy_diff = welt_i - state_f[1][-1]
+            combCnt = 0
+            for state_i in calculated1holeStates:
+                welt_i = state_i[1][-1]
                 
-                if energy_diff <= 0:
-                    break
-                
-                i, jj_i, eigv_i = state_i[0]
-                f, jj_f, eigv_f = state_f[0]
-                
-                inten_auger.append((float(jj_i + 1) / float(multiplicity_JJ[i])) * (float(calculatedAugerTransitions[combCnt][2][1]) / rate_level[state_i[0]]) if multiplicity_JJ[i] > 0 and rate_level[state_i[0]] > 0 else 0.0)
-                intensity_auger_ev.append(inten_auger[-1] * float(calculatedAugerTransitions[combCnt][2][0]))
-                transition_width_auger.append(rate_level_ev[state_i[0]] + rate_level_sat_ev[state_f[0]])
+                for state_f in calculated2holesStates:
+                    energy_diff = welt_i - state_f[1][-1]
+                    
+                    if energy_diff <= 0:
+                        break
+                    
+                    i, jj_i, eigv_i = state_i[0]
+                    f, jj_f, eigv_f = state_f[0]
+                    
+                    inten_auger.append((float(jj_i + 1) / float(multiplicity_JJ[i])) * (float(calculatedAugerTransitions[combCnt][2][1]) / rate_level[state_i[0]]) if multiplicity_JJ[i] > 0 and rate_level[state_i[0]] > 0 else 0.0)
+                    intensity_auger_ev.append(inten_auger[-1] * float(calculatedAugerTransitions[combCnt][2][0]))
+                    transition_width_auger.append(rate_level_ev[state_i[0]] + rate_level_sat_ev[state_f[0]])
 
 
-                #print(str(combCnt) + " \t " + shell_array[i] + " \t " + configuration_1hole[i] + " \t " + str(jj_i) + " \t " + str(eigv_i) + " \t " + configuration_2holes[f] + " \t " + str(jj_f) + " \t " + str(eigv_f) + " \t " + str(calculatedAugerTransitions[combCnt][2][0]) + " \t " + str(inten_auger[-1]) + " \t " + str(intensity_auger_ev[-1]) + " \t " + str(transition_width_auger[-1]) + "\n")
+                    #print(str(combCnt) + " \t " + shell_array[i] + " \t " + configuration_1hole[i] + " \t " + str(jj_i) + " \t " + str(eigv_i) + " \t " + configuration_2holes[f] + " \t " + str(jj_f) + " \t " + str(eigv_f) + " \t " + str(calculatedAugerTransitions[combCnt][2][0]) + " \t " + str(inten_auger[-1]) + " \t " + str(intensity_auger_ev[-1]) + " \t " + str(transition_width_auger[-1]) + "\n")
 
-                spectrum_auger.write(str(combCnt) + " \t " + \
-                                     shell_array[i] + " \t " + \
-                                     configuration_1hole[i] + " \t " + \
-                                     str(jj_i) + " \t " + \
-                                     str(eigv_i) + " \t " + \
-                                     str(state_i[1][0]) + " \t " + \
-                                     str(state_i[1][1]) + " \t " + \
-                                     shell_array_2holes[f] + " \t " + \
-                                     configuration_2holes[f] + " \t " + \
-                                     str(jj_f) + " \t " + \
-                                     str(eigv_f) + " \t " + \
-                                     str(state_f[1][0]) + " \t " + \
-                                     str(state_f[1][1]) + " \t " + \
-                                     str(calculatedAugerTransitions[combCnt][2][0]) + " \t " + \
-                                     str(inten_auger[-1]) + " \t " + \
-                                     str(intensity_auger_ev[-1]) + " \t " + \
-                                     str(transition_width_auger[-1]) + "\n")
-                
-                combCnt += 1
+                    spectrum_auger.write(str(combCnt) + " \t " + \
+                                         shell_array[i] + " \t " + \
+                                         configuration_1hole[i] + " \t " + \
+                                         str(jj_i) + " \t " + \
+                                         str(eigv_i) + " \t " + \
+                                         str(state_i[1][0]) + " \t " + \
+                                         str(state_i[1][1]) + " \t " + \
+                                         shell_array_2holes[f] + " \t " + \
+                                         configuration_2holes[f] + " \t " + \
+                                         str(jj_f) + " \t " + \
+                                         str(eigv_f) + " \t " + \
+                                         str(state_f[1][0]) + " \t " + \
+                                         str(state_f[1][1]) + " \t " + \
+                                         str(calculatedAugerTransitions[combCnt][2][0]) + " \t " + \
+                                         str(inten_auger[-1]) + " \t " + \
+                                         str(intensity_auger_ev[-1]) + " \t " + \
+                                         str(transition_width_auger[-1]) + "\n")
+                    
+                    combCnt += 1
     
     
     # -------------------- WRITE SATELLITE SPECTRUM -------------------- #
     
-    inten_trans_sat = []
-    intensity_sat_ev = []
-    transition_width_sat = []
-    
-    print("############ Writing satellite spectrum ###################\n")
-    
-    with open(file_rates_spectrum_shakeoff, "w") as spectrum_sat:
-        spectrum_sat.write("Transition register \t Shell IS \t IS Configuration \t IS 2JJ \t IS eigenvalue \t IS higher configuration \t IS percentage \t Shell FS \tFS Configuration \t FS 2JJ \t FS eigenvalue \t FS higher configuration \t FS percentage \t transition energy [eV] \t intensity \t intensity [eV] \t width [eV] \n")
-	
-        combCnt = 0
-        for counter, state_f in enumerate(calculated2holesStates):
-            for state_i in calculated2holesStates[(counter + 1):]:
-                i, jj_i, eigv_i = state_i[0]
-                f, jj_f, eigv_f = state_f[0]
-                
-                inten_trans_sat.append((float(jj_i + 1) / float(multiplicity_JJ_sat[i])) * (float(calculatedSatelliteTransitions[combCnt][2][1]) / rate_level_sat[state_i[0]]) if multiplicity_JJ_sat[i] > 0 and rate_level_sat[state_i[0]] > 0 else 0.0)
-                intensity_sat_ev.append(inten_trans_sat[-1] * float(calculatedSatelliteTransitions[combCnt][2][0]))
-                transition_width_sat.append(rate_level_sat_ev[state_i[0]] + rate_level_sat_ev[state_f[0]])
-                
-                
-                #print("\ntransition " + str(combCnt) + ": from " + configuration_2holes[i] + " 2J=" + str(jj_i) + " neig=" + str(eigv_i) + " -> " + configuration_2holes[f] + " 2J=" + str(jj_f) + " neig=" + str(eigv_f) + " rate = " + str(calculatedSatelliteTransitions[combCnt][2][1]) + " s-1  Energy = " + str(calculatedSatelliteTransitions[combCnt][2][0]) + " eV\n")
-                #print(" Width = initial state (" + str(rate_level_sat_ev[state_i[0]]) + " eV) + final state (" + str(rate_level_sat_ev[state_f[0]]) + " eV) = " + str(transition_width_sat[-1]) + " eV\n")
+    if satellite_done:
+        inten_trans_sat = []
+        intensity_sat_ev = []
+        transition_width_sat = []
+        
+        print("############ Writing satellite spectrum ###################\n")
+        
+        with open(file_rates_spectrum_shakeoff, "w") as spectrum_sat:
+            spectrum_sat.write("Transition register \t Shell IS \t IS Configuration \t IS 2JJ \t IS eigenvalue \t IS higher configuration \t IS percentage \t Shell FS \tFS Configuration \t FS 2JJ \t FS eigenvalue \t FS higher configuration \t FS percentage \t transition energy [eV] \t intensity \t intensity [eV] \t width [eV] \n")
+        
+            combCnt = 0
+            for counter, state_f in enumerate(calculated2holesStates):
+                for state_i in calculated2holesStates[(counter + 1):]:
+                    i, jj_i, eigv_i = state_i[0]
+                    f, jj_f, eigv_f = state_f[0]
+                    
+                    inten_trans_sat.append((float(jj_i + 1) / float(multiplicity_JJ_sat[i])) * (float(calculatedSatelliteTransitions[combCnt][2][1]) / rate_level_sat[state_i[0]]) if multiplicity_JJ_sat[i] > 0 and rate_level_sat[state_i[0]] > 0 else 0.0)
+                    intensity_sat_ev.append(inten_trans_sat[-1] * float(calculatedSatelliteTransitions[combCnt][2][0]))
+                    transition_width_sat.append(rate_level_sat_ev[state_i[0]] + rate_level_sat_ev[state_f[0]])
+                    
+                    
+                    #print("\ntransition " + str(combCnt) + ": from " + configuration_2holes[i] + " 2J=" + str(jj_i) + " neig=" + str(eigv_i) + " -> " + configuration_2holes[f] + " 2J=" + str(jj_f) + " neig=" + str(eigv_f) + " rate = " + str(calculatedSatelliteTransitions[combCnt][2][1]) + " s-1  Energy = " + str(calculatedSatelliteTransitions[combCnt][2][0]) + " eV\n")
+                    #print(" Width = initial state (" + str(rate_level_sat_ev[state_i[0]]) + " eV) + final state (" + str(rate_level_sat_ev[state_f[0]]) + " eV) = " + str(transition_width_sat[-1]) + " eV\n")
 
-                #print(" Intensity =  " + str(intensity_sat_ev[-1]) + "\n")
-                #print(str(jj_i) + " \t " + str(calculatedSatelliteTransitions[combCnt][2][1]) + " \t " + str(multiplicity_JJ_sat[i]) + " \t " + str(rate_level_sat[state_i[0]]) + "\n")
+                    #print(" Intensity =  " + str(intensity_sat_ev[-1]) + "\n")
+                    #print(str(jj_i) + " \t " + str(calculatedSatelliteTransitions[combCnt][2][1]) + " \t " + str(multiplicity_JJ_sat[i]) + " \t " + str(rate_level_sat[state_i[0]]) + "\n")
+                    
+                    spectrum_sat.write(str(combCnt) + " \t " + \
+                                       shell_array_2holes[i] + " \t " + \
+                                       configuration_2holes[i] + " \t " + \
+                                       str(jj_i) + " \t " + \
+                                       str(eigv_i) + " \t " + \
+                                       str(state_i[1][0]) + " \t " + \
+                                       str(state_i[1][1]) + " \t " + \
+                                       shell_array_2holes[f] + " \t " + \
+                                       configuration_2holes[f] + " \t " + \
+                                       str(jj_f) + " \t " + \
+                                       str(eigv_f) + " \t " + \
+                                       str(state_f[1][0]) + " \t " + \
+                                       str(state_f[1][1]) + " \t " + \
+                                       str(calculatedSatelliteTransitions[combCnt][2][0]) + " \t " + \
+                                       str(inten_trans_sat[-1]) + " \t " + \
+                                       str(intensity_sat_ev[-1]) + " \t " + \
+                                       str(transition_width_sat[-1]) + "\n")
+                    
+                    combCnt += 1
+    
+    
+    # -------------------- WRITE SATELLITE AUGER SPECTRUM -------------------- #
+    
+    if sat_aug_done:
+        inten_sat_auger = []
+        intensity_sat_auger_ev = []
+        transition_width_sat_auger = []
+        
+        print("############ Writing satellite auger spectrum ###################\n")
+        
+        with open(file_rates_spectrum_sat_auger, "w") as spectrum_sat_auger:
+            spectrum_sat_auger.write("Transition register \t Shell IS \t IS Configuration \t IS 2JJ \t IS eigenvalue \t IS higher configuration \t IS percentage \t Shell FS \tFS Configuration \t FS 2JJ \t FS eigenvalue \t FS higher configuration \t FS percentage \t transition energy [eV] \t intensity \t intensity [eV] \t width [eV] \n")
+            
+            combCnt = 0
+            for state_i in calculated2holesStates:
+                welt_i = state_i[1][-1]
                 
-                spectrum_sat.write(str(combCnt) + " \t " + \
-                                   shell_array_2holes[i] + " \t " + \
-                                   configuration_2holes[i] + " \t " + \
-                                   str(jj_i) + " \t " + \
-                                   str(eigv_i) + " \t " + \
-                                   str(state_i[1][0]) + " \t " + \
-                                   str(state_i[1][1]) + " \t " + \
-                                   shell_array_2holes[f] + " \t " + \
-                                   configuration_2holes[f] + " \t " + \
-                                   str(jj_f) + " \t " + \
-                                   str(eigv_f) + " \t " + \
-                                   str(state_f[1][0]) + " \t " + \
-                                   str(state_f[1][1]) + " \t " + \
-                                   str(calculatedSatelliteTransitions[combCnt][2][0]) + " \t " + \
-                                   str(inten_trans_sat[-1]) + " \t " + \
-                                   str(intensity_sat_ev[-1]) + " \t " + \
-                                   str(transition_width_sat[-1]) + "\n")
-                
-                combCnt += 1
+                for state_f in calculated3holesStates:
+                    energy_diff = welt_i - state_f[1][-1]
+                    
+                    if energy_diff <= 0:
+                        break
+                    
+                    i, jj_i, eigv_i = state_i[0]
+                    f, jj_f, eigv_f = state_f[0]
+                    
+                    inten_sat_auger.append((float(jj_i + 1) / float(multiplicity_JJ_sat[i])) * (float(calculatedSatelliteAugerTransitions[combCnt][2][1]) / rate_level_sat[state_i[0]]) if multiplicity_JJ_sat[i] > 0 and rate_level_sat[state_i[0]] > 0 else 0.0)
+                    intensity_sat_auger_ev.append(inten_sat_auger[-1] * float(calculatedSatelliteAugerTransitions[combCnt][2][0]))
+                    transition_width_sat_auger.append(rate_level_sat_ev[state_i[0]] + rate_level_sat_auger_ev[state_f[0]])
+
+
+                    #print(str(combCnt) + " \t " + shell_array_2holes[i] + " \t " + configuration_2holes[i] + " \t " + str(jj_i) + " \t " + str(eigv_i) + " \t " + configuration_3holes[f] + " \t " + str(jj_f) + " \t " + str(eigv_f) + " \t " + str(calculatedSatelliteAugerTransitions[combCnt][2][0]) + " \t " + str(inten_sat_auger[-1]) + " \t " + str(intensity_sat_auger_ev[-1]) + " \t " + str(transition_width_sat_auger[-1]) + "\n")
+
+                    spectrum_sat_auger.write(str(combCnt) + " \t " + \
+                                             shell_array_2holes[i] + " \t " + \
+                                             configuration_2holes[i] + " \t " + \
+                                             str(jj_i) + " \t " + \
+                                             str(eigv_i) + " \t " + \
+                                             str(state_i[1][0]) + " \t " + \
+                                             str(state_i[1][1]) + " \t " + \
+                                             shell_array_3holes[f] + " \t " + \
+                                             configuration_3holes[f] + " \t " + \
+                                             str(jj_f) + " \t " + \
+                                             str(eigv_f) + " \t " + \
+                                             str(state_f[1][0]) + " \t " + \
+                                             str(state_f[1][1]) + " \t " + \
+                                             str(calculatedSatelliteAugerTransitions[combCnt][2][0]) + " \t " + \
+                                             str(inten_sat_auger[-1]) + " \t " + \
+                                             str(intensity_sat_auger_ev[-1]) + " \t " + \
+                                             str(transition_width_sat_auger[-1]) + "\n")
+                    
+                    combCnt += 1
+    
+    
+    # -------------------- WRITE SHAKE-UP SPECTRUM -------------------- #
+    
+    if shakeup_done:
+        inten_shakeup = []
+        intensity_shakeup_ev = []
+        transition_shakeup_width = []
+        
+        print("############ Writing shake-up spectrum ###################")
+        
+        with open(file_rates_spectrum_shakeup, "w") as spectrum_shakeup:
+            spectrum_shakeup.write("Transition register \t Shell IS \t IS Configuration \t IS 2JJ \t IS eigenvalue \t IS higher configuration \t IS percentage \t Shell FS \tFS Configuration \t FS 2JJ \t FS eigenvalue \t FS higher configuration \t FS percentage \t transition energy [eV] \t intensity \t intensity [eV] \t width [eV] \n")
+        
+            combCnt = 0
+            for counter, state_f in enumerate(calculatedShakeupStates):
+                for state_i in calculatedShakeupStates[(counter + 1):]:
+                    i, jj_i, eigv_i = state_i[0]
+                    f, jj_f, eigv_f = state_f[0]
+                    
+                    
+                    inten_shakeup.append((float(jj_i + 1) / float(multiplicity_JJ_shakeup[i])) * (float(calculatedShakeupTransitions[combCnt][2][1]) / rate_level_shakeup[state_i[0]]))
+                    intensity_shakeup_ev.append(inten_shakeup[-1] * float(calculatedShakeupTransitions[combCnt][2][0]))
+                    transition_shakeup_width.append(rate_level_shakeup_ev[state_i[0]] + rate_level_shakeup_ev[state_f[0]])
+
+                    #print("\ntransition " + str(combCnt) + " : from " + configuration_shakeup[i] + " 2J=" + str(jj_i) + " neig=" + str(eigv_i) + " -> " + configuration_shakeup[f] + " 2J=" + str(jj_f) + " neig=" + str(eigv_f) + " = " + str(calculatedShakeupTransitions[combCnt][2][1]) + " s-1  Energy = " + str(calculatedShakeupTransitions[combCnt][2][0]) + " eV\n")
+                    #print(" Width = initial state (" + str(rate_level_shakeup_ev[state_i[0]]) + " eV) + final state (" + str(rate_level_shakeup_ev[state_f[0]]) + " eV) = " + str(transition_shakeup_width[-1]) + " eV\n")
+
+                    #print(" Intensity =  " + str(inten_shakeup[-1]) + "\n")
+                    #print(str(jj_i) + " \t " + str(calculatedShakeupTransitions[combCnt][2][1]) + " \t " + str(multiplicity_JJ_shakeup[i]) + " \t " + str(rate_level_shakeup[state_i[0]]) + "\n")
+                    
+                    spectrum_shakeup.write(str(combCnt) + " \t " + \
+                                           shell_array_shakeup[i] + " \t " + \
+                                           configuration_shakeup[i] + " \t " + \
+                                           str(jj_i) + " \t " + \
+                                           str(eigv_i) + " \t " + \
+                                           str(state_i[1][0]) + " \t " + \
+                                           str(state_i[1][1]) + " \t " + \
+                                           shell_array_shakeup[f] + " \t " + \
+                                           configuration_shakeup[f] + " \t " + \
+                                           str(jj_f) + " \t " + \
+                                           str(eigv_f) + " \t " + \
+                                           configuration_shakeup[f] + "  \t " + \
+                                           str(jj_f) + " \t " + \
+                                           str(calculatedShakeupTransitions[combCnt][2][0]) + " \t " + \
+                                           str(inten_shakeup[-1]) + " \t " + \
+                                           str(intensity_shakeup_ev[-1]) + " \t " + \
+                                           str(transition_shakeup_width[-1]) + "\n")
+                    
+                    combCnt += 1
 
 
 
@@ -5492,7 +5656,7 @@ def setupFiles():
     global file_rates, file_rates_auger, file_rates_shakeoff, file_rates_shakeup
     global file_rates_spectrum_diagram, file_rates_spectrum_auger, file_rates_spectrum_shakeoff, file_rates_spectrum_shakeup
     global file_rates_sums, file_rates_sums_shakeoff, file_rates_sums_shakeup
-    global file_level_widths, file_level_widths_shakeoff, file_level_widths_shakeup
+    global file_level_widths, file_level_widths_shakeoff, file_level_widths_shakeup, file_level_widths_sat_auger
     
     
     file_cycle_log_1hole = rootDir + "/" + directory_name + "/" + directory_name + "_1hole_states_log.txt"
@@ -5532,11 +5696,12 @@ def setupFiles():
     
     file_rates_sums = rootDir + "/" + directory_name + "/" + directory_name + "_rates_sums.txt" 
     file_rates_sums_shakeoff = rootDir + "/" + directory_name + "/" + directory_name + "_rates_sums_shakeoff.txt" 
-    file_rates_sums_shakeup = rootDir + "/" + directory_name + "/" + directory_name + "_rates_sums_shakeup.txt" 
+    file_rates_sums_shakeup = rootDir + "/" + directory_name + "/" + directory_name + "_rates_sums_shakeup.txt"
 
     file_level_widths = rootDir + "/" + directory_name + "/" + directory_name + "_level_widths.txt"
     file_level_widths_shakeoff = rootDir + "/" + directory_name + "/" + directory_name + "_level_widths_shakeoff.txt"
     file_level_widths_shakeup = rootDir + "/" + directory_name + "/" + directory_name + "_level_widths_shakeup.txt"
+    file_level_widths_sat_auger = rootDir + "/" + directory_name + "/" + directory_name + "_level_widths_sat_auger.txt"
 
 
 def writeCalculationParameters():
