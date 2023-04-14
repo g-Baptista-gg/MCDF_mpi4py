@@ -1,0 +1,62 @@
+1
+           M     M   CCCC  DDDD   FFFFF   GGGG   M     M   EEEEE
+           MM    M  C      D   D  F      G    G  MM   MM   E    
+           M M M M  C      D   D  F      G       M M M M   E    
+           M  M  M  C      D   D  FFF    G       M  M  M   EEE  
+           M     M  C      D   D  F      G GGGG  M     M   E    
+           M     M  C      D   D  F      G    G  M     M   E    
+           M     M   CCCC  DDDD   F       GGGG   M     M   EEEEE
+
+
+
+ Written by:     Jean-Paul DESCLAUX
+
+ Mailing adress: 15 Chemin du Billery
+                 F-38360 SASSENAGE  France
+ Phone: 33 (0)4 76 26 30 29
+ Email: jean-paul.desclaux@wanadoo.fr
+
+
+ and             Paul INDELICATO
+
+ Mailing adress: Laboratoire Kastler-Brossel, Case 74
+                 Ecole Normale Supérieure, CRNS, Université Pierre et Marie Curie
+                 4 place Jussieu
+                 F-75252 PARIS Cedex 05  France
+ Phone: 33 (0)1 44 27 43 96   Fax: 33 (0)1 44 27 38 45
+ Email: paul.indelicato@spectro.jussieu.fr 
+
+
+                            FORTRAN 95 release: 2019.1
+                            **************************
+                              Version of: 14/03/2019
+1
+
+          !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+          !  You are runing a version under development NOT suitable for production !
+          !      This release is normally RESERVED to code'authors JPD and PI       !
+          !                                                                         !
+          ! Don't know how you got it, but be aware that it may just result in JUNK !
+          !!!!!!!!!!! NO SUPPORT IS AVAILABLE if you nevertheless used it !!!!!!!!!!!
+          !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+
+
+ More outputs have been requested in following routine(s) for debuging purpose
+ scfmdf              
+ ====> For the routine(s) listed above, more outputs may be available in file f16
+
+  after first call to mesh_build, r(1)=   1.2818196549932454E-005  nuc=          41
+
+
+ !!!!! For state # 1 and configuration   1 highest 2Jz possible value is    5 while requesting 2J=  101 !!!!
+
+ Error in programme cfgread_one         
+ ****************************************
+ This configuration is not compatible with requested JT
+
+ The calling sequence to subroutine cfgread_one          was
+ MAIN --->               mcdfgme_datgcfg      --->               cfgread_giv         
+      --->               cfgread_one         
+
+ FATAL ERROR JOB ENDED ????????????????????
