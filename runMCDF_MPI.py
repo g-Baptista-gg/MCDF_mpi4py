@@ -4,6 +4,9 @@ import os, subprocess
 import time
 import pprint
 
+# For debugging: mpirun -n 4 xterm -hold -e python runMCDF_MPI.py 
+
+
 comm = MPI.COMM_WORLD
 rank = comm.Get_rank()
 total_ranks = comm.Get_size()
@@ -16,26 +19,37 @@ root_dir=None
 mdfgmeFile = '	   nblipa=75 tmp_dir=./tmp/\n	   f05FileName\n	   0.\n'
 mcdf_exe='mcdfgme2019.exe'
 
+config_n_labels = pd.read_csv('1hole_configurations.txt',header=None).values.tolist()+pd.read_csv('2holes_configurations.txt',header=None).values.tolist()
+config_n_labels_dict={config_n_labels[i][1]:config_n_labels[i][0] for i in range(len(config_n_labels))}
+
+
+
 def qn_to_dir(quantum_numbers,root_dir):
     current_dir = root_dir
     current_dir += 'auger/' if ('_' in quantum_numbers) else  'radiative/'
-    for i in quantum_numbers.split(sep=','): current_dir+=i+'/'
+    appends=['','2jj_','eig_']
+    quantum_numbers=quantum_numbers.split(sep=',')
+    for i in range(len(quantum_numbers)):
+        current_dir+=appends[i]+quantum_numbers[i]+'/'
     return current_dir
 
+def label_to_config(label):
+    return config_n_labels_dict[label].strip()
 
-def find_jj2(quantum_numbers,params):
+def find_jj2(quantum_numbers):
     cwd = qn_to_dir(quantum_numbers=quantum_numbers,root_dir=root_dir)
+    config=label_to_config(quantum_numbers)
     if not (os.path.exists(cwd)):
         os.makedirs(cwd)
     if not (os.path.exists(cwd+'tmp/')):
         os.makedirs(cwd+'tmp/')
     with open(cwd+'jjtest.f05','w') as f05_file:
-        f05_file.write(f05Template.replace('mcdfgmeconfiguration',params+' ')\
+        f05_file.write(f05Template.replace('mcdfgmeconfiguration',config+' ')\
                                   .replace('mcdfgmejj',(str(100) if electron_number%2==0 else str(101)))\
                                   .replace('mcdfgmeelectronnb', (str(electron_number-1) if ('_' in quantum_numbers) else str(electron_number))))
     with open(cwd +'mdfgme.dat','w') as dat_file:
         dat_file.write(mdfgmeFile.replace('f05FileName','jjTest'))
-    subprocess.call(mcdf_exe,cwd=cwd)
+    subprocess.call(mcdf_exe,cwd=cwd,stdout=subprocess.DEVNULL,stderr=subprocess.STDOUT)
     with open(cwd+'jjtest.f06','r',encoding='latin-1') as f06_file:
         for line in f06_file:
             if "highest 2Jz possible value is" in line:
@@ -43,9 +57,22 @@ def find_jj2(quantum_numbers,params):
                 break
     return max_j
 
-def find_eig(cwd):
-    #   Returns max eig
-    #print(f'{rank} - find_eig')
+def find_eig(quantum_numbers):
+    print(quantum_numbers,flush=True)
+    cwd = qn_to_dir(quantum_numbers=quantum_numbers,root_dir=root_dir)
+    if not (os.path.exists(cwd)):
+        os.makedirs(cwd)
+    if not (os.path.exists(cwd+'tmp/')):
+        os.makedirs(cwd+'tmp/')
+    label,jj2=quantum_numbers.split(',')
+    with open(cwd+'eigtest.f05','w') as f05_file:
+        f05_file.write(f05Template.replace('mcdfgmeconfiguration',label_to_config(label)+' ')\
+                                  .replace('mcdfgmejj',jj2)\
+                                  .replace('mcdfgmeelectronnb', (str(electron_number-1) if ('_' in quantum_numbers) else str(electron_number)))\
+                                  .replace('mcdfgmeneigv',str(1000)))
+    with open(cwd +'mdfgme.dat','w') as dat_file:
+        dat_file.write(mdfgmeFile.replace('f05FileName','eigtest'))
+    subprocess.call(mcdf_exe,cwd=cwd)
     return 0
 
 def no_cycles(cwd):
@@ -74,10 +101,10 @@ def do_work(calc: str):
     calc_method_params = calc_method.split(sep=':')[1]
     
     if calc_method_value == -4:
-        return (quantum_numbers+';'+'-3:'+str(find_jj2(quantum_numbers=quantum_numbers,params=calc_method_params)))
+        return (quantum_numbers+';'+'-3:'+str(find_jj2(quantum_numbers=quantum_numbers)))
     elif calc_method_value ==-3:
         # return (quantum_numbers+';'+'-2:'+str(find_eig()))
-        return (quantum_numbers+';'+'0:'+str(find_eig(cwd=current_dir)))
+        return (quantum_numbers+';'+'0:'+str(find_eig(quantum_numbers=quantum_numbers)))
     elif calc_method_value ==-2:
         no_cycles(cwd=current_dir)
     elif calc_method_value == 1:
@@ -89,7 +116,7 @@ def do_work(calc: str):
     elif calc_method_value == -5:
         breakflag=True
     else:
-        print('ERROR')
+        print('ERROR: Got undefined job')
         comm.Abort()
 
 def initTemplates(template,atomic_number,electron_number):
@@ -113,7 +140,7 @@ def setupTemplates(atomic_number,electron_number):
 
 # Program starts by master asking for user inputs for atomic number and electron number, setting up f05 templates and broadcasting to slave ranks
 if rank==0:
-    directory_name = 'Cu_4s'
+    directory_name = 'Cu_5s'
     # directory_name = input('Directory name: ')
     atomic_number   = int(29)
     # atomic_number   = int(input('Atomic number: '))
@@ -160,14 +187,14 @@ if rank == 0:
     config_n_labels = pd.read_csv('1hole_configurations.txt',header=None).values.tolist()+pd.read_csv('2holes_configurations.txt',header=None).values.tolist()
     work_pool=[]
     for i in config_n_labels:
-        work_pool.append(i[1].strip()+';'+'-4'+':'+i[0].strip())
+        work_pool.append(i[1].strip()+';'+'-4'+':')
     print('Done...')
     
     
     #by hand list
     failed_convergence = []
     while (len(idle_slaves)<total_ranks-1) or (len(work_pool)>0):
-        pprint.pprint(work_pool)
+        #pprint.pprint(work_pool)
         if len(work_pool)!=0 and len(idle_slaves)!=0:
             # Gives a job from pool to slave.
             slave_rank = idle_slaves.pop(0)
@@ -184,7 +211,7 @@ if rank == 0:
                 if calc_res_method == -3:
                     max_jj2=int(calc_res_params)
                     while max_jj2>=0:
-                        work_pool.append(quantum_numbers+';'+str(calc_res_method)+':'+str(max_jj2))
+                        work_pool.append(quantum_numbers+','+str(max_jj2)+';'+str(calc_res_method)+':')
                         max_jj2-=2
                 elif calc_res_method == -2:
                     pass #TODO: fazer o mesmo para os eigenvalues
@@ -194,7 +221,6 @@ if rank == 0:
     #TODO write output files
     for i in idle_slaves:
         comm.send(';-5:',dest=int(i))
-    print('Acabei',flush=True)
     MPI.Finalize()
 
 
@@ -208,5 +234,4 @@ else:
         if breakflag:
             break
         comm.send(f'{rank}|{result}', 0)
-
 
