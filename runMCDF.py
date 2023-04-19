@@ -76,8 +76,8 @@ for i in range (len(df_1hole)):
         print('Created directory: '+curr_dir+'/radiative/'+df_1hole[i,1])
 
     with open(curr_dir+'/radiative/'+str(df_1hole[i,1])+'/jjtest.f05','w') as f05_file:
-        f05_file.write(f05Template.replace('mcdfgmeconfiguration',df_1hole[i,0]).\
-                                   replace('mcdfgmejj',(str(100) if electron_number%2==0 else str(101))))
+        f05_file.write(f05Template.replace('mcdfgmeconfiguration',df_1hole[i,0])\
+                                  .replace('mcdfgmejj',(str(100) if electron_number%2==0 else str(101))))
         
     with open(curr_dir+'/radiative/'+str(df_1hole[i,1])+'/mdfgme.dat','w') as dat_file:
         dat_file.write(mdfgmeFile.replace('f05FileName','jjTest'))
