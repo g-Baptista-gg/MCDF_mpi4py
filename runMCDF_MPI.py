@@ -1,6 +1,6 @@
 from mpi4py import MPI
 import pandas as pd
-import os, subprocess
+import os, subprocess, shutil
 import time
 import pprint
 
@@ -36,6 +36,46 @@ def qn_to_dir(quantum_numbers,root_dir):
 def label_to_config(label):
     return config_n_labels_dict[label].strip()
 
+def check_convergence(f06_file):
+    #print(qn,flush=True)
+    if 'Total CPU Time for this job was' in f06_file[-1]:
+            first_overlap_flag=False
+            second_overlap_flag=False
+            max_overlap = 0
+            for i in range(len(f06_file)):
+                if not first_overlap_flag:
+                    if 'Off-diagonal Lagrange multipliers' in f06_file[-i-1]:
+                        first_overlap_flag = True
+                        pass
+                elif first_overlap_flag and not second_overlap_flag:
+                    if 'Overlap integrals' in f06_file[-i-1]:
+                        second_overlap_flag = True
+                        pass
+                    if '>' in f06_file[-i-1]:
+                        overlaps=f06_file[-i-1].split(' >')
+                        for i in overlaps[1:]:
+                            if '<' in i:
+                                i=i.split('<')[0]
+                            if '\n' in i:
+                                i=i.split('\n')[0]
+                            i=abs(float(i.strip()))
+                        if i>max_overlap: max_overlap=i
+                    if max_overlap> 1E-6: return False, 'Overlaps'
+                elif first_overlap_flag and second_overlap_flag:
+                    if 'ETOT (a.u.)' in f06_file[-i-1]:
+                        _,en1,en2=f06_file[-i].split()
+                        if abs(float(en1)-float(en2))>1:
+                            return False, 'Energy diff'
+                        else: return True, max_overlap
+            else:
+                return False, 'ReadMe'
+    else:
+        return False
+
+
+
+
+
 def find_jj2(quantum_numbers):
     cwd = qn_to_dir(quantum_numbers=quantum_numbers,root_dir=root_dir)
     config=label_to_config(quantum_numbers)
@@ -57,22 +97,34 @@ def find_jj2(quantum_numbers):
                 break
     return max_j
 
-def find_eig(quantum_numbers):
-    print(quantum_numbers,flush=True)
+def find_eig(quantum_numbers): # performs calculation for 1st eigen in order to find max
+    #print(quantum_numbers,flush=True)
     cwd = qn_to_dir(quantum_numbers=quantum_numbers,root_dir=root_dir)
     if not (os.path.exists(cwd)):
         os.makedirs(cwd)
-    if not (os.path.exists(cwd+'tmp/')):
-        os.makedirs(cwd+'tmp/')
+        os.makedirs(cwd+'eig_0/')
+    if not (os.path.exists(cwd+'eig_0/'+'tmp/')):
+        os.makedirs(cwd+'eig_0/'+'tmp/')
     label,jj2=quantum_numbers.split(',')
-    with open(cwd+'eigtest.f05','w') as f05_file:
+    with open(cwd+'eig_0/'+label+'_'+jj2+'_0'+'.f05','w') as f05_file:
         f05_file.write(f05Template.replace('mcdfgmeconfiguration',label_to_config(label)+' ')\
                                   .replace('mcdfgmejj',jj2)\
                                   .replace('mcdfgmeelectronnb', (str(electron_number-1) if ('_' in quantum_numbers) else str(electron_number)))\
-                                  .replace('mcdfgmeneigv',str(1000)))
-    with open(cwd +'mdfgme.dat','w') as dat_file:
-        dat_file.write(mdfgmeFile.replace('f05FileName','eigtest'))
-    subprocess.call(mcdf_exe,cwd=cwd)
+                                  .replace('mcdfgmeneigv',str(1)))
+    with open(cwd+'eig_0/' +'mdfgme.dat','w') as dat_file:
+        dat_file.write(mdfgmeFile.replace('f05FileName',label+'_'+jj2+'_0'))
+    subprocess.call(mcdf_exe,cwd=cwd+'eig_0/',stdout=subprocess.DEVNULL,stderr=subprocess.STDOUT)
+    with open(cwd+'eig_0/'+label+'_'+jj2+'_0'+'.f06','r',encoding='latin-1') as f06_file:
+        for line in f06_file:
+            if '---- Current subspace include jj configurations from' in line:
+                max_eig=line.split('to')[1].strip()
+                print(f'Max eig: {max_eig}',flush=True)
+                break
+        else:
+            print(f'Couldnt find Eigenvalues: {quantum_numbers}',flush=True)
+            shutil.rmtree(cwd)
+            return 0
+        print(f'QN: {quantum_numbers}\t Convergence: {check_convergence(f06_file.readlines())}',flush=True)
     return 0
 
 def no_cycles(cwd):
@@ -194,6 +246,7 @@ if rank == 0:
     #by hand list
     failed_convergence = []
     while (len(idle_slaves)<total_ranks-1) or (len(work_pool)>0):
+        print(f'Idle Slaves: {idle_slaves}',flush=True) if len(idle_slaves)>0 else print('',flush=True)
         #pprint.pprint(work_pool)
         if len(work_pool)!=0 and len(idle_slaves)!=0:
             # Gives a job from pool to slave.
