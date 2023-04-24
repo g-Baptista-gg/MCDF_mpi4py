@@ -37,7 +37,7 @@ def label_to_config(label):
     return config_n_labels_dict[label].strip()
 
 def check_convergence(f06_file):
-    #print(qn,flush=True)
+    #print(f06_file[-1])
     if 'Total CPU Time for this job was' in f06_file[-1]:
             first_overlap_flag=False
             second_overlap_flag=False
@@ -60,23 +60,32 @@ def check_convergence(f06_file):
                                 i=i.split('\n')[0]
                             i=abs(float(i.strip()))
                         if i>max_overlap: max_overlap=i
-                    if max_overlap> 1E-6: return False, 'Overlaps'
+                    if max_overlap> 1E-6:
+                        print('Overlaps')
+                        return False
                 elif first_overlap_flag and second_overlap_flag:
                     if 'ETOT (a.u.)' in f06_file[-i-1]:
                         _,en1,en2=f06_file[-i].split()
                         if abs(float(en1)-float(en2))>1:
-                            return False, 'Energy diff'
-                        else: return True, max_overlap
+                            print('Energy diff')
+                            return False
+                        else:
+                            print('Converged!')
+                            return True
             else:
-                return False, 'ReadMe'
+                print('???????')
+                return False
     else:
         return False
+    
+#TODO se convergir retornar o valor de energia e caso não, procurar a orbital que falhou
 
 
 
 
 
 def find_jj2(quantum_numbers):
+    print(f'{quantum_numbers}-> Find jj2')
     cwd = qn_to_dir(quantum_numbers=quantum_numbers,root_dir=root_dir)
     config=label_to_config(quantum_numbers)
     if not (os.path.exists(cwd)):
@@ -98,7 +107,7 @@ def find_jj2(quantum_numbers):
     return max_j
 
 def find_eig(quantum_numbers): # performs calculation for 1st eigen in order to find max
-    #print(quantum_numbers,flush=True)
+    print(f'{quantum_numbers}-> Find eig')
     cwd = qn_to_dir(quantum_numbers=quantum_numbers,root_dir=root_dir)
     if not (os.path.exists(cwd)):
         os.makedirs(cwd)
@@ -118,21 +127,60 @@ def find_eig(quantum_numbers): # performs calculation for 1st eigen in order to 
         for line in f06_file:
             if '---- Current subspace include jj configurations from' in line:
                 max_eig=line.split('to')[1].strip()
-                print(f'Max eig: {max_eig}',flush=True)
+                #print(f'Max eig: {max_eig}',flush=True)
                 break
         else:
-            print(f'Couldnt find Eigenvalues: {quantum_numbers}',flush=True)
+            #print(f'Couldnt find Eigenvalues: {quantum_numbers}',flush=True)
             shutil.rmtree(cwd)
-            return 0
-        print(f'QN: {quantum_numbers}\t Convergence: {check_convergence(f06_file.readlines())}',flush=True)
-    return 0
+            return quantum_numbers+';'+'-2'+':'+'-1'
+        if check_convergence(f06_file.readlines()):
+            return quantum_numbers+';'+'-2'+':'+str(max_eig)+','+'1'
+        else:
+            return quantum_numbers+';'+'-2'+':'+str(max_eig)+','+'0'
 
-def no_cycles(cwd):
-    #   Returns 0 if failed, 1 if successfull
-    pass
-def with_cycles(cwd):
+def no_cycles(quantum_numbers):
+    print(f'{quantum_numbers}-> no cycles')
+    cwd = qn_to_dir(quantum_numbers=quantum_numbers,root_dir=root_dir)
+    if not (os.path.exists(cwd)):
+        os.makedirs(cwd)
+    if not (os.path.exists(cwd+'tmp/')):
+        os.makedirs(cwd+'tmp/')
+    label,jj2,eig=quantum_numbers.split(',')
+    with open(cwd+label+'_'+jj2+'_'+eig+'.f05','w') as f05_file:
+        f05_file.write(f05Template.replace('mcdfgmeconfiguration',label_to_config(label)+' ')\
+                                  .replace('mcdfgmejj',jj2)\
+                                  .replace('mcdfgmeelectronnb', (str(electron_number-1) if ('_' in quantum_numbers) else str(electron_number)))\
+                                  .replace('mcdfgmeneigv',str(int(eig)+1)))
+    with open(cwd +'mdfgme.dat','w') as dat_file:
+        dat_file.write(mdfgmeFile.replace('f05FileName',label+'_'+jj2+'_'+eig))
+    subprocess.call(mcdf_exe,cwd=cwd,stdout=subprocess.DEVNULL,stderr=subprocess.STDOUT)
+    with open(cwd+label+'_'+jj2+'_'+eig+'.f06','r',encoding='latin-1') as f06_file:
+        return check_convergence(f06_file.readlines())
+    
+
+
+
+
+def with_cycles(quantum_numbers):
     #   Returns 0 if failed followed by the failed orbital, 1 if successfull Ex: [0,"2p"]
-    pass
+    cwd = qn_to_dir(quantum_numbers=quantum_numbers,root_dir=root_dir)
+    if not (os.path.exists(cwd)):
+        os.makedirs(cwd)
+    if not (os.path.exists(cwd+'tmp/')):
+        os.makedirs(cwd+'tmp/')
+    label,jj2,eig=quantum_numbers.split(',')
+    with open(cwd+label+'_'+jj2+'_'+eig+'.f05','w') as f05_file:
+        f05_file.write(f05Template_10steps.replace('mcdfgmeconfiguration',label_to_config(label)+' ')\
+                                  .replace('mcdfgmejj',jj2)\
+                                  .replace('mcdfgmeelectronnb', (str(electron_number-1) if ('_' in quantum_numbers) else str(electron_number)))\
+                                  .replace('mcdfgmeneigv',str(int(eig)+1)))
+    with open(cwd +'mdfgme.dat','w') as dat_file:
+        dat_file.write(mdfgmeFile.replace('f05FileName',label+'_'+jj2+'_'+eig))
+    subprocess.call(mcdf_exe,cwd=cwd,stdout=subprocess.DEVNULL,stderr=subprocess.STDOUT)
+    with open(cwd+label+'_'+jj2+'_'+eig+'.f06','r',encoding='latin-1') as f06_file:
+        return check_convergence(f06_file.readlines())
+    
+
 def with_1orb(cwd):
     #   Returns 0 if failed followed by the failed orbitals, 1 if successfull Ex: [0,"2p_3p"]
     pass
@@ -155,12 +203,18 @@ def do_work(calc: str):
     if calc_method_value == -4:
         return (quantum_numbers+';'+'-3:'+str(find_jj2(quantum_numbers=quantum_numbers)))
     elif calc_method_value ==-3:
-        # return (quantum_numbers+';'+'-2:'+str(find_eig()))
-        return (quantum_numbers+';'+'0:'+str(find_eig(quantum_numbers=quantum_numbers)))
+        return find_eig(quantum_numbers)
     elif calc_method_value ==-2:
-        no_cycles(cwd=current_dir)
+        if no_cycles(quantum_numbers):
+            return (quantum_numbers+';'+'0:')
+        else:
+            return (quantum_numbers+';'+'1:')
+        
+
     elif calc_method_value == 1:
-        with_cycles(cwd=current_dir)
+        print(f' 10 cycles:{quantum_numbers}-> {with_cycles(quantum_numbers)}')
+        return (quantum_numbers+';'+'0:')
+        # with_cycles(cwd=current_dir)
     elif calc_method_value == 2:
         with_1orb(cwd=current_dir)
     elif calc_method_value == 3:
@@ -192,7 +246,7 @@ def setupTemplates(atomic_number,electron_number):
 
 # Program starts by master asking for user inputs for atomic number and electron number, setting up f05 templates and broadcasting to slave ranks
 if rank==0:
-    directory_name = 'Cu_5s'
+    directory_name = 'Cu_4p'
     # directory_name = input('Directory name: ')
     atomic_number   = int(29)
     # atomic_number   = int(input('Atomic number: '))
@@ -254,6 +308,7 @@ if rank == 0:
             comm.send(obj=work_pool.pop(0),dest=int(slave_rank))
         else:
             slave_rank, calc_res = str(comm.recv(source=MPI.ANY_SOURCE)).split("|")
+            print(calc_res)
             quantum_numbers,calc_res_vals = calc_res.split(';')
             calc_res_method , calc_res_params = calc_res_vals.split(":")
             calc_res_method= int(calc_res_method)
@@ -266,8 +321,16 @@ if rank == 0:
                     while max_jj2>=0:
                         work_pool.append(quantum_numbers+','+str(max_jj2)+';'+str(calc_res_method)+':')
                         max_jj2-=2
+
                 elif calc_res_method == -2:
-                    pass #TODO: fazer o mesmo para os eigenvalues
+                    calc_res_params = calc_res_params.split(',')
+                    if len(calc_res_params)==2:
+                        max_eig=int(calc_res_params[0])
+                        eig_test_converged=calc_res_params[1]
+                        for i in range(max_eig):
+                            if i!=0: work_pool.append(quantum_numbers+','+str(i)+';'+'-2'+':')
+                        if eig_test_converged=='0': work_pool.append(quantum_numbers+',0'+';'+'1'+':')
+                        #TODO Save to list in case it converged
                 else:
                     work_pool.append(calc_res)
             idle_slaves.append(slave_rank)
