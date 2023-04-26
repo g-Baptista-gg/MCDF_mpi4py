@@ -41,6 +41,7 @@ def check_convergence(f06_file, look_for_orb):
     if 'Total CPU Time for this job was' in f06_file[-1]:
         overlap_flag=False
         max_overlap = 0
+        high_overlap_flag= 'Good Overlaps'
         for i in range(len(f06_file)):
             if not overlap_flag:
                 if 'Overlap integrals' in f06_file[-i-1]:
@@ -55,8 +56,7 @@ def check_convergence(f06_file, look_for_orb):
                         if k>max_overlap: max_overlap=k
                         j+=1
                     if max_overlap> 1E-6:
-                        #print('Overlaps')
-                        return False
+                        high_overlap_flag='Bad Overlaps'
             else:
                 if 'ETOT (a.u.)' in f06_file[-i-1]:
                     _,en1,en2=f06_file[-i].split()
@@ -65,7 +65,8 @@ def check_convergence(f06_file, look_for_orb):
                         return False
                     else:
                         #print('Converged!')
-                        return True
+                        energy='0'
+                        return True,energy,high_overlap_flag
         else:
             print('???????')
             comm.Abort()
@@ -138,8 +139,9 @@ def find_eig(quantum_numbers): # performs calculation for 1st eigen in order to 
             return quantum_numbers+';'+'-2'+':'+'-1'
         f06_lines=f06_file.readlines()
         #print(f'{quantum_numbers}     {check_convergence(f06_lines,False)}\n {f06_lines[-1]}',flush=True)
-        if check_convergence(f06_lines,False):
-            return quantum_numbers+';'+'-2'+':'+str(max_eig)+','+'1'
+        res=check_convergence(f06_lines,False)
+        if type(res)!=bool:
+            return quantum_numbers+';'+'-2'+':'+str(max_eig)+','+'1,'+res[1]+','+res[2]
         else:
             return quantum_numbers+';'+'-2'+':'+str(max_eig)+','+'0'
 
@@ -252,47 +254,60 @@ def do_work(calc: str):
         return find_eig(quantum_numbers)
     
     elif calc_method_value ==-2:
-        #print(f'No Cycles: {quantum_numbers}',flush=True)
-        if no_cycles(quantum_numbers):
-            return (quantum_numbers+';'+'0:')
+        print(f'No Cycles: {quantum_numbers}',flush=True)
+        res= no_cycles(quantum_numbers)
+        print(res,flush=True)
+        if type(res)==bool:
+            return (quantum_numbers+';1:')
         else:
-            return (quantum_numbers+';'+'1:')
+            return (quantum_numbers+';0:'+res[1]+','+res[2])
 
     elif calc_method_value == 1:
         #print(f'10 Cycles: {quantum_numbers}',flush=True)
         conv_n_orbs=with_cycles(quantum_numbers)
         if type(conv_n_orbs)!=bool:
-            if conv_n_orbs[1]!=None:
-                return (quantum_numbers+';2:'+conv_n_orbs[1])
+            if conv_n_orbs[0]:
+                return (quantum_numbers+';0:'+conv_n_orbs[1]+','+conv_n_orbs[2])
             else:
-                return quantum_numbers+';-1:'
+                if conv_n_orbs[1]!=None:
+                    return (quantum_numbers+';2:'+conv_n_orbs[1])
+                else:
+                    return quantum_numbers+';-1:'
         else:
-            if conv_n_orbs:
-                return quantum_numbers+';0:'
-            else:
-                return quantum_numbers+';-1:'
+            return quantum_numbers+';-1:'
+        # if type(conv_n_orbs)!=bool:
+        #     if conv_n_orbs[1]!=None:
+        #         return (quantum_numbers+';2:'+conv_n_orbs[1])
+        #     else:
+        #         return quantum_numbers+';-1:'
+        # else:
+        #     if conv_n_orbs:
+        #         return quantum_numbers+';0:'
+        #     else:
+        #         return quantum_numbers+';-1:'
             
     elif calc_method_value == 2:
         conv_n_orbs=with_1orb(quantum_numbers,calc_method_params)
         #print(f'1 Failed Orbital: {quantum_numbers}',flush=True)
         if type(conv_n_orbs)!=bool:
-            if conv_n_orbs[1]!=None:
-                return (quantum_numbers+';3:'+calc_method_params+','+conv_n_orbs[1])
+            if conv_n_orbs[0]:
+                return (quantum_numbers+';0:'+conv_n_orbs[1]+','+conv_n_orbs[2])
             else:
-                return quantum_numbers+';-1:'
+                if conv_n_orbs[1]!=None:
+                    return (quantum_numbers+';3:'+calc_method_params+','+conv_n_orbs[1])
+                else:
+                    return quantum_numbers+';-1:'
         else:
-            if conv_n_orbs:
-                return quantum_numbers+';0:'
-            else:
-                return quantum_numbers+';-1:'
+            return quantum_numbers+';-1:'
 
 
     elif calc_method_value == 3:
         #print(f'2 Failed Orbitals: {quantum_numbers}',flush=True)
-        if with_2orbs(quantum_numbers,calc_method_params):
-            return quantum_numbers+';0:'
-        else:
+        res=with_2orbs(quantum_numbers,calc_method_params)
+        if type(res)==bool:
             return quantum_numbers+';-1:'
+        else:
+            return quantum_numbers+';0:'+res[1]+','+res[2]
         
     elif calc_method_value == -5:
         breakflag=True
@@ -321,11 +336,11 @@ def setupTemplates(atomic_number,electron_number):
 
 # Program starts by master asking for user inputs for atomic number and electron number, setting up f05 templates and broadcasting to slave ranks
 if rank==0:
-    directory_name = 'Cu_4p'
+    directory_name = 'Cu_1+'
     # directory_name = input('Directory name: ')
     atomic_number   = int(29)
     # atomic_number   = int(input('Atomic number: '))
-    electron_number = int(29)
+    electron_number = int(28)
     # electron_number = int(input('Number of electrons: '))
     
     templates = setupTemplates(atomic_number,electron_number)
@@ -408,7 +423,7 @@ if rank == 0:
 
                 elif calc_res_method == -2:
                     calc_res_params = calc_res_params.split(',')
-                    if len(calc_res_params)==2:
+                    if len(calc_res_params)>=2:
                         max_eig=int(calc_res_params[0])
                         eig_test_converged=calc_res_params[1]
                         for i in range(max_eig):
@@ -418,11 +433,14 @@ if rank == 0:
                             work_pool.append(quantum_numbers+',0'+';'+'1'+':')
                         else:
                             print(f'Converged: {calc_res}\n',flush=True)
-                            converged_list.append((quantum_numbers+',0').split(','))
+                            converged_list.append((quantum_numbers+',0,'+calc_res_params[2]+','+calc_res_params[3]).split(','))
                 else:
                     work_pool.append(calc_res)
             else:
-                converged_list.append(quantum_numbers.split(','))
+                print(f'Converged: {calc_res}\n',flush=True)
+                calc_res_params = calc_res_params.split(',')
+                
+                converged_list.append((quantum_numbers+','+calc_res_params[0]+','+calc_res_params[1]).split(','))
                 print(f'Converged: {quantum_numbers}',flush=True)
 
             idle_slaves.append(slave_rank)
@@ -434,10 +452,12 @@ if rank == 0:
 
     with open(root_dir+'byHand.csv','w') as file:
         writer = csv.writer(file)
+        writer.writerow(['Label','2jj','eig'])
         writer.writerows(failed_convergence)
 
     with open(root_dir+'converged.csv','w') as file:
         writer = csv.writer(file)
+        writer.writerow(['Label','2jj','eig','Energy','OverlapStatus'])
         writer.writerows(converged_list)
 
 
