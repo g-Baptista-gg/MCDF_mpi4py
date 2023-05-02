@@ -2,7 +2,6 @@ from mpi4py import MPI
 import pandas as pd
 import os, subprocess, shutil, csv
 import time
-import pprint
 
 # For debugging: mpirun -n 4 xterm -hold -e python runMCDF_MPI.py 
 # TODO: IMPORTANT- Change f05 templates in case Z>48
@@ -19,16 +18,25 @@ root_dir=None
 mdfgmeFile = '	   nblipa=75 tmp_dir=./tmp/\n	   f05FileName\n	   0.\n'
 mcdf_exe='mcdfgme2019.exe'
 
-config_n_labels = pd.read_csv('1hole_configurations.txt',header=None).values.tolist()+pd.read_csv('2holes_configurations.txt',header=None).values.tolist()
+rad_config_n_labels = pd.read_csv('1hole_configurations.txt',header=None).values.tolist()
+for i in rad_config_n_labels:
+    i[1]= 'rad,'+i[1]
+
+aug_config_n_labels=pd.read_csv('2holes_configurations.txt',header=None).values.tolist()
+for i in aug_config_n_labels:
+    i[1]= 'aug,'+i[1]
+
+config_n_labels = rad_config_n_labels + aug_config_n_labels
+#config_n_labels = pd.read_csv('1hole_configurations.txt',header=None).values.tolist()+pd.read_csv('2holes_configurations.txt',header=None).values.tolist()
 config_n_labels_dict={config_n_labels[i][1]:config_n_labels[i][0] for i in range(len(config_n_labels))}
 
 
 
 def qn_to_dir(quantum_numbers,root_dir):
     current_dir = root_dir
-    current_dir += 'auger/' if ('_' in quantum_numbers) else  'radiative/'
+    current_dir += 'auger/' if ('aug' in quantum_numbers) else  'radiative/'
     appends=['','2jj_','eig_']
-    quantum_numbers=quantum_numbers.split(sep=',')
+    quantum_numbers=quantum_numbers.split(sep=',')[1:]
     for i in range(len(quantum_numbers)):
         current_dir+=appends[i]+quantum_numbers[i]+'/'
     return current_dir
@@ -41,7 +49,7 @@ def check_convergence(f06_file, look_for_orb):
     if 'Total CPU Time for this job was' in f06_file[-1]:
         overlap_flag=False
         max_overlap = 0
-        high_overlap_flag= 'Good Overlaps'
+        
         for i in range(len(f06_file)):
             if not overlap_flag:
                 if 'Overlap integrals' in f06_file[-i-1]:
@@ -55,8 +63,6 @@ def check_convergence(f06_file, look_for_orb):
                             k=abs(float(k.strip()))
                         if k>max_overlap: max_overlap=k
                         j+=1
-                    if max_overlap> 1E-6:
-                        high_overlap_flag='Bad Overlaps'
             else:
                 if 'ETOT (a.u.)' in f06_file[-i-1]:
                     _,en1,en2=f06_file[-i].split()
@@ -65,8 +71,13 @@ def check_convergence(f06_file, look_for_orb):
                         return False
                     else:
                         #print('Converged!')
-                        energy='0'
-                        return True,energy,high_overlap_flag
+
+                        for k in range(len(f06_file)):
+                            if 'Etot_(Welt.)' in f06_file[-k-1]:
+                                energy = f06_file[-k-1].split()[3].strip()
+                                return True,energy,str(max_overlap)
+                        else:
+                            return False
         else:
             print('???????')
             comm.Abort()
@@ -107,7 +118,7 @@ def find_jj2(quantum_numbers):
             if "highest 2Jz possible value is" in line:
                 max_j = line.split("highest 2Jz possible value is")[1].strip().split()[0]
                 break
-    print(f'{quantum_numbers}-> Max jj2 = {max_j}',flush=True)
+    #print(f'{quantum_numbers}-> Max jj2 = {max_j}',flush=True)
     return max_j
 
 def find_eig(quantum_numbers): # performs calculation for 1st eigen in order to find max
@@ -118,9 +129,9 @@ def find_eig(quantum_numbers): # performs calculation for 1st eigen in order to 
         os.makedirs(cwd+'eig_0/')
     if not (os.path.exists(cwd+'eig_0/'+'tmp/')):
         os.makedirs(cwd+'eig_0/'+'tmp/')
-    label,jj2=quantum_numbers.split(',')
+    hole_type,label,jj2=quantum_numbers.split(',')
     with open(cwd+'eig_0/'+label+'_'+jj2+'_0'+'.f05','w') as f05_file:
-        f05_file.write(f05Template.replace('mcdfgmeconfiguration',label_to_config(label)+' ')\
+        f05_file.write(f05Template.replace('mcdfgmeconfiguration',label_to_config(hole_type+','+label)+' ')\
                                   .replace('mcdfgmejj',jj2)\
                                   .replace('mcdfgmeelectronnb', (str(electron_number-1) if ('_' in quantum_numbers) else str(electron_number)))\
                                   .replace('mcdfgmeneigv',str(1)))
@@ -152,9 +163,9 @@ def no_cycles(quantum_numbers):
         os.makedirs(cwd)
     if not (os.path.exists(cwd+'tmp/')):
         os.makedirs(cwd+'tmp/')
-    label,jj2,eig=quantum_numbers.split(',')
+    hole_type,label,jj2,eig=quantum_numbers.split(',')
     with open(cwd+label+'_'+jj2+'_'+eig+'.f05','w') as f05_file:
-        f05_file.write(f05Template.replace('mcdfgmeconfiguration',label_to_config(label)+' ')\
+        f05_file.write(f05Template.replace('mcdfgmeconfiguration',label_to_config(hole_type+','+label)+' ')\
                                   .replace('mcdfgmejj',jj2)\
                                   .replace('mcdfgmeelectronnb', (str(electron_number-1) if ('_' in quantum_numbers) else str(electron_number)))\
                                   .replace('mcdfgmeneigv',str(int(eig)+1)))
@@ -175,9 +186,9 @@ def with_cycles(quantum_numbers):
         os.makedirs(cwd)
     if not (os.path.exists(cwd+'tmp/')):
         os.makedirs(cwd+'tmp/')
-    label,jj2,eig=quantum_numbers.split(',')
+    hole_type,label,jj2,eig=quantum_numbers.split(',')
     with open(cwd+label+'_'+jj2+'_'+eig+'.f05','w') as f05_file:
-        f05_file.write(f05Template_10steps.replace('mcdfgmeconfiguration',label_to_config(label)+' ')\
+        f05_file.write(f05Template_10steps.replace('mcdfgmeconfiguration',label_to_config(hole_type+','+label)+' ')\
                                   .replace('mcdfgmejj',jj2)\
                                   .replace('mcdfgmeelectronnb', (str(electron_number-1) if ('_' in quantum_numbers) else str(electron_number)))\
                                   .replace('mcdfgmeneigv',str(int(eig)+1)))
@@ -195,9 +206,9 @@ def with_1orb(quantum_numbers,failed_orbs):
         os.makedirs(cwd)
     if not (os.path.exists(cwd+'tmp/')):
         os.makedirs(cwd+'tmp/')
-    label,jj2,eig=quantum_numbers.split(',')
+    hole_type,label,jj2,eig=quantum_numbers.split(',')
     with open(cwd+label+'_'+jj2+'_'+eig+'.f05','w') as f05_file:
-        f05_file.write(f05Template_10steps_Forbs.replace('mcdfgmeconfiguration',label_to_config(label)+' ')\
+        f05_file.write(f05Template_10steps_Forbs.replace('mcdfgmeconfiguration',label_to_config(hole_type+','+label)+' ')\
                                   .replace('mcdfgmejj',jj2)\
                                   .replace('mcdfgmeelectronnb', (str(electron_number-1) if ('_' in quantum_numbers) else str(electron_number)))\
                                   .replace('mcdfgmeneigv',str(int(eig)+1))\
@@ -220,9 +231,9 @@ def with_2orbs(quantum_numbers,failed_orbs):
         os.makedirs(cwd)
     if not (os.path.exists(cwd+'tmp/')):
         os.makedirs(cwd+'tmp/')
-    label,jj2,eig=quantum_numbers.split(',')
+    hole_type,label,jj2,eig=quantum_numbers.split(',')
     with open(cwd+label+'_'+jj2+'_'+eig+'.f05','w') as f05_file:
-        f05_file.write(f05Template_10steps_Forbs.replace('mcdfgmeconfiguration',label_to_config(label)+' ')\
+        f05_file.write(f05Template_10steps_Forbs.replace('mcdfgmeconfiguration',label_to_config(hole_type+','+label)+' ')\
                                   .replace('mcdfgmejj',jj2)\
                                   .replace('mcdfgmeelectronnb', (str(electron_number-1) if ('_' in quantum_numbers) else str(electron_number)))\
                                   .replace('mcdfgmeneigv',str(int(eig)+1))\
@@ -232,15 +243,20 @@ def with_2orbs(quantum_numbers,failed_orbs):
     subprocess.call(mcdf_exe,cwd=cwd,stdout=subprocess.DEVNULL,stderr=subprocess.STDOUT)
     with open(cwd+label+'_'+jj2+'_'+eig+'.f06','r',encoding='latin-1') as f06_file:
         return check_convergence(f06_file.readlines(),False)
+    
+def get_parameters(quantum_numbers):
+    cwd = qn_to_dir(quantum_numbers=quantum_numbers,root_dir=root_dir)
+    label,jj2,eig=quantum_numbers.split(',')
+
 
 def do_work(calc: str):
     global breakflag
     quantum_numbers,calc_method=calc.split(sep=';')
     #print(calc_method,flush=True)
-    current_dir = root_dir
-    if quantum_numbers!= '':
-        current_dir += 'auger/' if ('_' in quantum_numbers) else  'radiative/'
-        for i in quantum_numbers.split(sep=','): current_dir+=i+'/'
+    # current_dir = root_dir
+    # if quantum_numbers!= '':
+    #     current_dir += 'auger/' if ('aug' in quantum_numbers) else  'radiative/'
+    #     for i in quantum_numbers.split(sep=','): current_dir+=i+'/'
 
     calc_method_value  = int(calc_method.split(sep=':')[0])
     calc_method_params = calc_method.split(sep=':')[1]
@@ -254,9 +270,9 @@ def do_work(calc: str):
         return find_eig(quantum_numbers)
     
     elif calc_method_value ==-2:
-        print(f'No Cycles: {quantum_numbers}',flush=True)
+        #print(f'No Cycles: {quantum_numbers}',flush=True)
         res= no_cycles(quantum_numbers)
-        print(res,flush=True)
+        #print(res,flush=True)
         if type(res)==bool:
             return (quantum_numbers+';1:')
         else:
@@ -336,12 +352,17 @@ def setupTemplates(atomic_number,electron_number):
 
 # Program starts by master asking for user inputs for atomic number and electron number, setting up f05 templates and broadcasting to slave ranks
 if rank==0:
+    os.system('clear')
     directory_name = 'Cu_1+'
     # directory_name = input('Directory name: ')
     atomic_number   = int(29)
     # atomic_number   = int(input('Atomic number: '))
     electron_number = int(28)
     # electron_number = int(input('Number of electrons: '))
+
+    calc_step = int(input('----------------------------------------------------\nComputation Mehtods:\n----------------------------------------------------\nEnergy and WF calculations:\t0\nGet Parameters:\t\t\t1 \nRates:\t\t\t\t2\nSums:\t\t\t\t3\nGet Parameters + Rates + Sums:\t4\n----------------------------------------------------\nPlease enter what computation should be performed: '))
+
+    start_time = time.time()
     
     templates = setupTemplates(atomic_number,electron_number)
     #print('Done setup templates')
@@ -377,88 +398,108 @@ electron_number = comm.bcast(electron_number,root=0)
 if rank == 0:
     #array containing idle slave processes
     idle_slaves=list(range(total_ranks))[1:]
-    
-    #Setup initial work pool
-    #print('Setup config files.')
-    config_n_labels = pd.read_csv('1hole_configurations.txt',header=None).values.tolist()+pd.read_csv('2holes_configurations.txt',header=None).values.tolist()
     work_pool=[]
-    for i in config_n_labels:
-        work_pool.append(i[1].strip()+';'+'-4'+':')
-    #print('Done...')
-    
-    
-    #by hand list
-    failed_convergence = []
-    #Successfully converged list
-    converged_list = []
+    if calc_step == 0:
+        #Setup initial work pool
+        #print('Setup config files.')
+        rad_config_n_labels = pd.read_csv('1hole_configurations.txt',header=None).values.tolist()
+        for i in rad_config_n_labels:
+            i[1]= 'rad,'+i[1]
+
+        aug_config_n_labels=pd.read_csv('2holes_configurations.txt',header=None).values.tolist()
+        for i in aug_config_n_labels:
+            i[1]= 'aug,'+i[1]
+
+        config_n_labels = rad_config_n_labels + aug_config_n_labels
+
+        #config_n_labels = pd.read_csv('1hole_configurations.txt',header=None).values.tolist()+pd.read_csv('2holes_configurations.txt',header=None).values.tolist()
+
+        for i in config_n_labels:
+            work_pool.append(i[1].strip()+';'+'-4'+':')
+        #print('Done...')
 
 
-    while (len(idle_slaves)<total_ranks-1) or (len(work_pool)>0):
-        print(f'Idle Slaves: {idle_slaves}',flush=True) if len(idle_slaves)>0 else print('',flush=True)
-        
-        #pprint.pprint(work_pool)
-        if len(work_pool)!=0 and len(idle_slaves)!=0:
-            print(f'Work: {work_pool[0]}\n',flush=True)
-            # Gives a job from pool to slave.
-            slave_rank = idle_slaves.pop(0)
+        #by hand list
+        failed_convergence = []
+        #Successfully converged list
+        converged_list = []
 
-            comm.send(obj=work_pool.pop(0),dest=int(slave_rank))
-        else:
+
+        while (len(idle_slaves)<total_ranks-1) or (len(work_pool)>0):
             print(f'Idle Slaves: {idle_slaves}',flush=True) if len(idle_slaves)>0 else print('',flush=True)
-            slave_rank, calc_res = str(comm.recv(source=MPI.ANY_SOURCE)).split("|")
-            #print(calc_res)
-            quantum_numbers,calc_res_vals = calc_res.split(';')
-            calc_res_method , calc_res_params = calc_res_vals.split(":")
-            calc_res_method= int(calc_res_method)
-            if calc_res_method==-1:
-                failed_convergence.append(quantum_numbers.split(','))
-                print(f'Failed: {quantum_numbers}',flush=True)
-            elif calc_res_method != 0 :
 
-                if calc_res_method == -3:
-                    max_jj2=int(calc_res_params)
-                    while max_jj2>=0:
-                        work_pool.append(quantum_numbers+','+str(max_jj2)+';'+str(calc_res_method)+':')
-                        max_jj2-=2
+            #pprint.pprint(work_pool)
+            if len(work_pool)!=0 and len(idle_slaves)!=0:
+                print(f'Work: {work_pool[0]}\n',flush=True)
+                # Gives a job from pool to slave.
+                slave_rank = idle_slaves.pop(0)
 
-                elif calc_res_method == -2:
-                    calc_res_params = calc_res_params.split(',')
-                    if len(calc_res_params)>=2:
-                        max_eig=int(calc_res_params[0])
-                        eig_test_converged=calc_res_params[1]
-                        for i in range(max_eig):
-                            if i!=0: work_pool.append(quantum_numbers+','+str(i)+';'+'-2'+':')
-                        if eig_test_converged=='0':
-                            print(f'Failed: {quantum_numbers}\n',flush=True)
-                            work_pool.append(quantum_numbers+',0'+';'+'1'+':')
-                        else:
-                            print(f'Converged: {calc_res}\n',flush=True)
-                            converged_list.append((quantum_numbers+',0,'+calc_res_params[2]+','+calc_res_params[3]).split(','))
-                else:
-                    work_pool.append(calc_res)
+                comm.send(obj=work_pool.pop(0),dest=int(slave_rank))
             else:
-                print(f'Converged: {calc_res}\n',flush=True)
-                calc_res_params = calc_res_params.split(',')
-                
-                converged_list.append((quantum_numbers+','+calc_res_params[0]+','+calc_res_params[1]).split(','))
-                print(f'Converged: {quantum_numbers}',flush=True)
+                print(f'Idle Slaves: {idle_slaves}',flush=True) if len(idle_slaves)>0 else print('',flush=True)
+                slave_rank, calc_res = str(comm.recv(source=MPI.ANY_SOURCE)).split("|")
+                #print(calc_res)
+                quantum_numbers,calc_res_vals = calc_res.split(';')
+                calc_res_method , calc_res_params = calc_res_vals.split(":")
+                calc_res_method= int(calc_res_method)
+                if calc_res_method==-1:
+                    failed_convergence.append(quantum_numbers.split(','))
+                    print(f'Failed: {quantum_numbers}',flush=True)
+                elif calc_res_method != 0 :
 
-            idle_slaves.append(slave_rank)
+                    if calc_res_method == -3:
+                        max_jj2=int(calc_res_params)
+                        while max_jj2>=0:
+                            work_pool.append(quantum_numbers+','+str(max_jj2)+';'+str(calc_res_method)+':')
+                            max_jj2-=2
 
-    for i in idle_slaves:
-        comm.send(';-5:',dest=int(i))
+                    elif calc_res_method == -2:
+                        calc_res_params = calc_res_params.split(',')
+                        if len(calc_res_params)>=2:
+                            max_eig=int(calc_res_params[0])
+                            eig_test_converged=calc_res_params[1]
+                            for i in range(max_eig):
+                                if i!=0: work_pool.append(quantum_numbers+','+str(i)+';'+'-2'+':')
+                            if eig_test_converged=='0':
+                                print(f'Failed: {quantum_numbers}\n',flush=True)
+                                work_pool.append(quantum_numbers+',0'+';'+'1'+':')
+                            else:
+                                print(f'Converged: {calc_res}\n',flush=True)
+                                converged_list.append((quantum_numbers+',0,'+calc_res_params[2]+','+calc_res_params[3]).split(','))
+                    else:
+                        work_pool.append(calc_res)
+                else:
+                    print(f'Converged: {calc_res}\n',flush=True)
+                    calc_res_params = calc_res_params.split(',')
 
-    MPI.Finalize()
+                    converged_list.append((quantum_numbers+','+calc_res_params[0]+','+calc_res_params[1]).split(','))
+                    #print(f'Converged: {quantum_numbers}',flush=True)
 
-    with open(root_dir+'byHand.csv','w') as file:
-        writer = csv.writer(file)
-        writer.writerow(['Label','2jj','eig'])
-        writer.writerows(failed_convergence)
+                idle_slaves.append(slave_rank)
 
-    with open(root_dir+'converged.csv','w') as file:
-        writer = csv.writer(file)
-        writer.writerow(['Label','2jj','eig','Energy','OverlapStatus'])
-        writer.writerows(converged_list)
+        for i in idle_slaves:
+            comm.send(';-5:',dest=int(i))
+
+        MPI.Finalize()
+
+        # with open(root_dir+'byHand.csv','w') as file:
+            # writer = csv.writer(file)
+            # writer.writerow(['Config type','Label','2jj','eig'])
+            # writer.writerows(failed_convergence)
+        
+        df= pd.DataFrame(failed_convergence,columns = ['Config type','Label','2jj','eig']).sort_values(by=['Config type','Label','2jj','eig'],ascending=[False,True,True,True]).to_csv(root_dir+'byHand.csv',index=False)
+
+        # with open(root_dir+'converged.csv','w') as file:
+        #     writer = csv.writer(file)
+        #     writer.writerow(['Config type','Label','2jj','eig','Energy','Max Overlap'])
+        #     writer.writerows(converged_list)
+
+        df= pd.DataFrame(converged_list,columns=['Config type','Label','2jj','eig','Energy','Max Overlap']).sort_values(by=['Config type','Label','2jj','eig'],ascending=[False,True,True,True]).to_csv(root_dir+'converged.csv',index=False)
+
+
+        print("--- %s seconds ---" % (time.time() - start_time))
+    else:
+        comm.Abort()
 
 
 
