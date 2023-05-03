@@ -66,7 +66,8 @@ def check_convergence(f06_file, look_for_orb):
             else:
                 if 'ETOT (a.u.)' in f06_file[-i-1]:
                     _,en1,en2=f06_file[-i].split()
-                    if abs(float(en1)-float(en2))>1:
+                    en_diff=abs(float(en1)-float(en2))
+                    if en_diff>1:
                         #print('Energy diff')
                         return False
                     else:
@@ -75,7 +76,7 @@ def check_convergence(f06_file, look_for_orb):
                         for k in range(len(f06_file)):
                             if 'Etot_(Welt.)' in f06_file[-k-1]:
                                 energy = f06_file[-k-1].split()[3].strip()
-                                return True,energy,str(max_overlap)
+                                return True,energy,str(en_diff),str(max_overlap)
                         else:
                             return False
         else:
@@ -95,7 +96,7 @@ def check_convergence(f06_file, look_for_orb):
 
 
 def find_jj2(quantum_numbers):
-    #print(quantum_numbers,flush=True)
+    print(quantum_numbers,flush=True)
     cwd = qn_to_dir(quantum_numbers=quantum_numbers,root_dir=root_dir)
     config=label_to_config(quantum_numbers)
     if not (os.path.exists(cwd)):
@@ -119,6 +120,7 @@ def find_jj2(quantum_numbers):
                 max_j = line.split("highest 2Jz possible value is")[1].strip().split()[0]
                 break
     #print(f'{quantum_numbers}-> Max jj2 = {max_j}',flush=True)
+    #print(max_j)
     return max_j
 
 def find_eig(quantum_numbers): # performs calculation for 1st eigen in order to find max
@@ -152,7 +154,7 @@ def find_eig(quantum_numbers): # performs calculation for 1st eigen in order to 
         #print(f'{quantum_numbers}     {check_convergence(f06_lines,False)}\n {f06_lines[-1]}',flush=True)
         res=check_convergence(f06_lines,False)
         if type(res)!=bool:
-            return quantum_numbers+';'+'-2'+':'+str(max_eig)+','+'1,'+res[1]+','+res[2]
+            return quantum_numbers+';'+'-2'+':'+str(max_eig)+','+'1,'+res[1]+','+res[2]+','+res[3]
         else:
             return quantum_numbers+';'+'-2'+':'+str(max_eig)+','+'0'
 
@@ -276,14 +278,14 @@ def do_work(calc: str):
         if type(res)==bool:
             return (quantum_numbers+';1:')
         else:
-            return (quantum_numbers+';0:'+res[1]+','+res[2])
+            return (quantum_numbers+';0:'+res[1]+','+res[2]+','+res[3])
 
     elif calc_method_value == 1:
         #print(f'10 Cycles: {quantum_numbers}',flush=True)
         conv_n_orbs=with_cycles(quantum_numbers)
         if type(conv_n_orbs)!=bool:
             if conv_n_orbs[0]:
-                return (quantum_numbers+';0:'+conv_n_orbs[1]+','+conv_n_orbs[2])
+                return (quantum_numbers+';0:'+conv_n_orbs[1]+','+conv_n_orbs[2]+','+conv_n_orbs[3])
             else:
                 if conv_n_orbs[1]!=None:
                     return (quantum_numbers+';2:'+conv_n_orbs[1])
@@ -307,7 +309,7 @@ def do_work(calc: str):
         #print(f'1 Failed Orbital: {quantum_numbers}',flush=True)
         if type(conv_n_orbs)!=bool:
             if conv_n_orbs[0]:
-                return (quantum_numbers+';0:'+conv_n_orbs[1]+','+conv_n_orbs[2])
+                return (quantum_numbers+';0:'+conv_n_orbs[1]+','+conv_n_orbs[2]+','+conv_n_orbs[3])
             else:
                 if conv_n_orbs[1]!=None:
                     return (quantum_numbers+';3:'+calc_method_params+','+conv_n_orbs[1])
@@ -323,7 +325,7 @@ def do_work(calc: str):
         if type(res)==bool:
             return quantum_numbers+';-1:'
         else:
-            return quantum_numbers+';0:'+res[1]+','+res[2]
+            return quantum_numbers+';0:'+res[1]+','+res[2]+','+res[3]
         
     elif calc_method_value == -5:
         breakflag=True
@@ -353,11 +355,11 @@ def setupTemplates(atomic_number,electron_number):
 # Program starts by master asking for user inputs for atomic number and electron number, setting up f05 templates and broadcasting to slave ranks
 if rank==0:
     os.system('clear')
-    directory_name = 'Cu_1+'
+    directory_name = 'Mn_1+'
     # directory_name = input('Directory name: ')
-    atomic_number   = int(29)
+    atomic_number   = int(25)
     # atomic_number   = int(input('Atomic number: '))
-    electron_number = int(28)
+    electron_number = int(24)
     # electron_number = int(input('Number of electrons: '))
 
     calc_step = int(input('----------------------------------------------------\nComputation Mehtods:\n----------------------------------------------------\nEnergy and WF calculations:\t0\nGet Parameters:\t\t\t1 \nRates:\t\t\t\t2\nSums:\t\t\t\t3\nGet Parameters + Rates + Sums:\t4\n----------------------------------------------------\nPlease enter what computation should be performed: '))
@@ -402,17 +404,20 @@ if rank == 0:
     if calc_step == 0:
         #Setup initial work pool
         #print('Setup config files.')
+        if not (os.path.exists(root_dir)):
+            os.makedirs(root_dir)
+        shutil.copyfile('1hole_configurations.txt',root_dir+'backup_1hole_configurations.txt')
         rad_config_n_labels = pd.read_csv('1hole_configurations.txt',header=None).values.tolist()
         for i in rad_config_n_labels:
             i[1]= 'rad,'+i[1]
 
+        shutil.copyfile('2holes_configurations.txt',root_dir+'backup_2holes_configurations.txt')
         aug_config_n_labels=pd.read_csv('2holes_configurations.txt',header=None).values.tolist()
         for i in aug_config_n_labels:
             i[1]= 'aug,'+i[1]
 
         config_n_labels = rad_config_n_labels + aug_config_n_labels
 
-        #config_n_labels = pd.read_csv('1hole_configurations.txt',header=None).values.tolist()+pd.read_csv('2holes_configurations.txt',header=None).values.tolist()
 
         for i in config_n_labels:
             work_pool.append(i[1].strip()+';'+'-4'+':')
@@ -448,6 +453,7 @@ if rank == 0:
                 elif calc_res_method != 0 :
 
                     if calc_res_method == -3:
+                        print
                         max_jj2=int(calc_res_params)
                         while max_jj2>=0:
                             work_pool.append(quantum_numbers+','+str(max_jj2)+';'+str(calc_res_method)+':')
@@ -465,14 +471,14 @@ if rank == 0:
                                 work_pool.append(quantum_numbers+',0'+';'+'1'+':')
                             else:
                                 print(f'Converged: {calc_res}\n',flush=True)
-                                converged_list.append((quantum_numbers+',0,'+calc_res_params[2]+','+calc_res_params[3]).split(','))
+                                converged_list.append((quantum_numbers+',0,'+calc_res_params[2]+','+calc_res_params[3]+','+calc_res_params[4]).split(','))
                     else:
                         work_pool.append(calc_res)
                 else:
                     print(f'Converged: {calc_res}\n',flush=True)
                     calc_res_params = calc_res_params.split(',')
 
-                    converged_list.append((quantum_numbers+','+calc_res_params[0]+','+calc_res_params[1]).split(','))
+                    converged_list.append((quantum_numbers+','+calc_res_params[0]+','+calc_res_params[1]+','+calc_res_params[2]).split(','))
                     #print(f'Converged: {quantum_numbers}',flush=True)
 
                 idle_slaves.append(slave_rank)
@@ -494,7 +500,7 @@ if rank == 0:
         #     writer.writerow(['Config type','Label','2jj','eig','Energy','Max Overlap'])
         #     writer.writerows(converged_list)
 
-        df= pd.DataFrame(converged_list,columns=['Config type','Label','2jj','eig','Energy','Max Overlap']).sort_values(by=['Config type','Label','2jj','eig'],ascending=[False,True,True,True]).to_csv(root_dir+'converged.csv',index=False)
+        df= pd.DataFrame(converged_list,columns=['Config type','Label','2jj','eig','Energy','En diff','Max Overlap']).sort_values(by=['Config type','Label','2jj','eig'],ascending=[False,True,True,True]).to_csv(root_dir+'converged.csv',index=False)
 
 
         print("--- %s seconds ---" % (time.time() - start_time))
