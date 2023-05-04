@@ -1,0 +1,37 @@
+       program_year=2019 program_version=1
+*   1 mcdfgmelabel
+    scfmdf max  :
+    mod_lightspeed=n
+    nz=25
+    mdf  opt_ener=todo  modfilname_ener=n modfilname_wf=n do_scf=y     
+    Breit=full  mag_scf=y  ret_scf=y
+    qedstpg_n4=n
+    vacpol_scf=y
+    energy
+#    use_mcdfener=y
+#    opt_relax=y                                                         
+    ret_Lorentz=y
+    opt_qedel=y :
+# ":" above is for ilams taken to be the default value
+    mod_mesh=n
+#    hx=0.012 r(1)=0.001 amesh=0.01 :
+    exotic=n
+    use_nms=y
+    mod_nuc=n
+    project=n
+#    cgt_order_vint=y order=6
+    cgt_order_vint=n
+    def_config=given
+    nbel=24 jjt=100  :
+c  1 (1s)2 (2s)2 (2p)6 (3s)2 (3p)6 (3d)10 (4p)1 :
+end
+# initial state parameters
+    neigv=mcdfgmeneigv   icmul=0   iprfgr=0
+    norbsc=00  ndep=0   nlec=0   nec=1  :
+    nstep=0
+    lregul=n  modtest=n
+    modsolv_orb=n
+    mod_odlm=n
+# data for uwfrdf
+    :
+**

@@ -285,7 +285,7 @@ def do_work(calc: str):
         conv_n_orbs=with_cycles(quantum_numbers)
         if type(conv_n_orbs)!=bool:
             if conv_n_orbs[0]:
-                return (quantum_numbers+';0:'+conv_n_orbs[1]+','+conv_n_orbs[2]+','+conv_n_orbs[3])
+                return (quantum_numbers+';0:'+','.join(conv_n_orbs[1:]))
             else:
                 if conv_n_orbs[1]!=None:
                     return (quantum_numbers+';2:'+conv_n_orbs[1])
@@ -355,11 +355,11 @@ def setupTemplates(atomic_number,electron_number):
 # Program starts by master asking for user inputs for atomic number and electron number, setting up f05 templates and broadcasting to slave ranks
 if rank==0:
     os.system('clear')
-    directory_name = 'Mn_1+'
+    directory_name = 'Cu_4p'
     # directory_name = input('Directory name: ')
-    atomic_number   = int(25)
+    atomic_number   = int(29)
     # atomic_number   = int(input('Atomic number: '))
-    electron_number = int(24)
+    electron_number = int(29)
     # electron_number = int(input('Number of electrons: '))
 
     calc_step = int(input('----------------------------------------------------\nComputation Mehtods:\n----------------------------------------------------\nEnergy and WF calculations:\t0\nGet Parameters:\t\t\t1 \nRates:\t\t\t\t2\nSums:\t\t\t\t3\nGet Parameters + Rates + Sums:\t4\n----------------------------------------------------\nPlease enter what computation should be performed: '))
@@ -471,14 +471,13 @@ if rank == 0:
                                 work_pool.append(quantum_numbers+',0'+';'+'1'+':')
                             else:
                                 print(f'Converged: {calc_res}\n',flush=True)
-                                converged_list.append((quantum_numbers+',0,'+calc_res_params[2]+','+calc_res_params[3]+','+calc_res_params[4]).split(','))
+                                converged_list.append(calc_res.split(','))
                     else:
                         work_pool.append(calc_res)
                 else:
                     print(f'Converged: {calc_res}\n',flush=True)
-                    calc_res_params = calc_res_params.split(',')
 
-                    converged_list.append((quantum_numbers+','+calc_res_params[0]+','+calc_res_params[1]+','+calc_res_params[2]).split(','))
+                    converged_list.append(calc_res.split(','))
                     #print(f'Converged: {quantum_numbers}',flush=True)
 
                 idle_slaves.append(slave_rank)
