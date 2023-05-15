@@ -3,7 +3,10 @@ import pandas as pd
 import os, subprocess, shutil, sys
 import time,tqdm
 
-# For debugging: mpirun -n 4 xterm -hold -e python runMCDF_MPI.py 
+# For debugging: mpirun -n $(nproc) xterm -hold -e python runMCDF_MPI.py 
+# For max usage of physical threads: mpirun --use-hwthread-cpus python3 runMCDF_MPI.py
+# For limited usage of physical thread: mpirun --use-hwthread-cpus -n $(($(nproc)-5)) python3 runMCDF_MPI.py
+
 # TODO: IMPORTANT- Change f05 templates in case Z>48
 
 hbar = 6.582119569E-16
@@ -111,6 +114,91 @@ def check_convergence(f06_file, look_for_orb):
         else:
             return False
                             
+def check_convergence_gp(f06_file):
+    #print(f06_file[-1])
+    if 'Total CPU Time for this job was' in f06_file[-1]:
+        overlap_flag=False
+        enTot_flag=False
+        en_flag = False
+        config_flag=False
+        common_flag=False
+        config_count=0
+        max_overlap = 0
+        max_config = ''
+        max_config_val = 0
+        config=''
+        
+        for i in range(len(f06_file)):
+            if not config_flag:
+                if 'Configuration(s)' in f06_file[i]:
+                    config_count+=1
+                    if config_count==1:config=f06_file[i+1].strip()
+                    if 'Configuration(s)' not in f06_file[i+2]:config_flag=True
+            else:
+                if not common_flag and config_count>1:
+                    
+                    if 'Common to all configurations' in f06_file[i]:
+                        config=f06_file[i].split('Common to all configurations')[-1].strip()
+                        common_flag=True
+                
+
+            if not enTot_flag:
+                if 'Etot_(Welt.)' in f06_file[-i-1]:
+                    energy = f06_file[-i-1].split()[3].strip()
+                    enTot_flag=True
+            else:
+                if not overlap_flag:
+                    if 'Overlap integrals' in f06_file[-i-1]:
+                        overlap_flag=True
+                        j=1
+                        while ("|" in f06_file[-i-1+j] and ">" in f06_file[-i-1+j] and "<" in f06_file[-i-1+j]):
+                            overlaps=f06_file[-i-1+j].split(' >')
+                            for k in overlaps[1:]:
+                                if '<' in k:
+                                    k=k.split('<')[0]
+                                k=abs(float(k.strip()))
+                            if k>max_overlap: max_overlap=k
+                            j+=1
+                else:
+                    if not en_flag:
+                        if 'ETOT (a.u.)' in f06_file[-i-1]:
+                            _,en1,en2=f06_file[-i].split()
+                            en_diff=abs(float(en1)-float(en2))
+                            if config_count==1:return True,config,energy,str(en_diff),str(max_overlap)
+                            else: en_flag=True
+                    else:
+                        if 'List of jj configurations with a weight >= 0.01%' in f06_file[-i-1]:
+                            k=0
+                            while '%' in f06_file[-i+k]:
+                                if float(f06_file[-i+k].split()[-2])>max_config_val:
+                                    
+                                    max_config=' '.join(f06_file[-i+k].split()[:-2])
+                                k+=1
+                            return True,config+' '+max_config,energy,str(en_diff),str(max_overlap)
+
+
+
+
+
+        else:
+            for i in range(len(f06_file)):
+                if 'ETOT (a.u.)' in f06_file[-i-1]:
+                    _,en1,en2=f06_file[-i].split()
+                    en_diff=abs(float(en1)-float(en2))
+                    if en_diff>1:
+                        #print('Energy diff')
+                        return False
+                    else:
+                        #print('Converged!')
+
+                        for k in range(len(f06_file)):
+                            if 'Etot_(Welt.)' in f06_file[-k-1]:
+                                energy = f06_file[-k-1].split()[3].strip()
+                                return True,energy,str(en_diff),'No Overlaps'
+                        else:
+                            return False
+    else: return False
+
 
 
 def find_jj2(quantum_numbers):
@@ -268,7 +356,7 @@ def get_parameters(quantum_numbers):
     cwd = qn_to_dir(quantum_numbers=quantum_numbers,root_dir=root_dir)
     hole_type,label,jj2,eig=quantum_numbers.split(',')
     with open(cwd+label+'_'+jj2+'_'+eig+'.f06','r',encoding='latin-1') as f06_file:
-        return check_convergence(f06_file.readlines(),False)
+        return check_convergence_gp(f06_file.readlines())
 
 def get_rate(i_qn,f_qn,trans_type,en_dif):
     i_cwd=qn_to_dir(i_qn,root_dir)
@@ -324,10 +412,12 @@ def get_rate(i_qn,f_qn,trans_type,en_dif):
 
         for i in range(len(f06_lines)):
             if trans_type == 'auger':
+                #os.system('clear')
+                #print(i_qn,f_qn,flush=True)
+                #comm.Abort()
                 if '(sec-1)' in f06_lines[-i-1]:
                     #print('Auger: ',f06_lines[-i-1].split()[0],flush=True)
                     rate=f06_lines[-i-1].split()[0]
-
                     return rate
             else:
                 if 'and total transition rate is:' in f06_lines[-i-1]:
@@ -658,7 +748,7 @@ if rank == 0:
                 
 
 
-        pd.DataFrame(final_state_res,columns=['Config type','Label','2jj','eig','Energy','En diff','Max Overlap']).sort_values(by=['Config type','Label','2jj','eig'],ascending=[False,True,True,True]).to_csv(root_dir+'all_converged.csv',index=False)
+        pd.DataFrame(final_state_res,columns=['Config type','Label','2jj','eig','Configuration','Energy','En diff','Max Overlap']).sort_values(by=['Config type','Label','2jj','eig'],ascending=[False,True,True,True]).to_csv(root_dir+'all_converged.csv',index=False)
     
 
     if calc_step == 2 or calc_step==4:
