@@ -1,11 +1,11 @@
 from mpi4py import MPI
 import pandas as pd
 import os, subprocess, shutil, sys
-import time,tqdm
+import time,tqdm,re
 
 # For debugging: mpirun -n $(nproc) xterm -hold -e python runMCDF_MPI.py 
 # For max usage of physical threads: mpirun --use-hwthread-cpus python3 runMCDF_MPI.py
-# For limited usage of physical thread: mpirun --use-hwthread-cpus -n $(($(nproc)-5)) python3 runMCDF_MPI.py
+# For limited usage of physical threads: mpirun --use-hwthread-cpus -n $(($(nproc)-5)) python3 runMCDF_MPI.py
 
 # TODO: IMPORTANT- Change f05 templates in case Z>48
 
@@ -48,6 +48,26 @@ def qn_to_dir(quantum_numbers,root_dir):
 
 def label_to_config(label):
     return config_n_labels_dict[label].strip()
+
+
+def order_orbital(strings):
+    # Define the order of orbitals
+    orbital_order = {'s': 0, 'p': 1, 'd': 2, 'f': 3, 'g': 4, 'h': 5, 'i': 6, 'j': 7, 'k': 8, 'l': 9, 'm': 10, 'n': 11, 'o': 12}
+
+    # Custom sorting function
+    def sort_key(string):
+        # Extract the first number and orbital type using regular expressions
+        match = re.search(r'(\d+)([a-z]+)', string)
+        first_number = int(match.group(1))
+        orbital_type = match.group(2)
+
+        # Return a tuple for sorting
+        return first_number, orbital_order[orbital_type]
+
+    # Sort the strings based on the custom key function
+    sorted_strings = sorted(strings.split(), key=sort_key)
+
+    return sorted_strings
 
 def check_convergence(f06_file, look_for_orb):
     #print(f06_file[-1])
@@ -164,7 +184,9 @@ def check_convergence_gp(f06_file):
                         if 'ETOT (a.u.)' in f06_file[-i-1]:
                             _,en1,en2=f06_file[-i].split()
                             en_diff=abs(float(en1)-float(en2))
-                            if config_count==1:return True,config,energy,str(en_diff),str(max_overlap)
+                            if config_count==1:
+                                config=order_orbital(config)
+                                return True,' '.join(config),energy,str(en_diff),str(max_overlap)
                             else: en_flag=True
                     else:
                         if 'List of jj configurations with a weight >= 0.01%' in f06_file[-i-1]:
@@ -174,12 +196,14 @@ def check_convergence_gp(f06_file):
                                     
                                     max_config=' '.join(f06_file[-i+k].split()[:-2])
                                 k+=1
-                            return True,config+' '+max_config,energy,str(en_diff),str(max_overlap)
+                            config=config+' '+max_config
+                            config=order_orbital(config)
+                            return True,' '.join(config),energy,str(en_diff),str(max_overlap)
 
 
 
 
-
+# TODO: same for this case
         else:
             for i in range(len(f06_file)):
                 if 'ETOT (a.u.)' in f06_file[-i-1]:
@@ -508,13 +532,15 @@ def do_work(calc: str):
         i_qn = quantum_numbers
         _=calc_method_params.split(',')
         trans_type=_[0]
-        en_dif = _[-1]
+        en_dif = _[-3]
+        i_config = _[-2]
+        f_config = _[-1]
         
         f_qn = ','.join(_[1:5])
         rate=get_rate(i_qn,f_qn,trans_type,en_dif)
         if rate!=-1:
         #print('AHH ',i_qn+';0:'+trans_type+','+f_qn+','+rate+','+en_dif,flush=True)
-            return i_qn+';0:'+trans_type+','+f_qn+','+rate+','+en_dif
+            return i_qn+';0:'+trans_type+','+f_qn+','+rate+','+en_dif+','+i_config+','+f_config
         else:
 
             return i_qn+';-1:'
@@ -753,17 +779,17 @@ if rank == 0:
 
     if calc_step == 2 or calc_step==4:
         total_rad_trans,total_aug_trans,total_sat_trans=0,0,0
-        df = pd.read_csv(root_dir + 'all_converged.csv').sort_values('Energy',ascending=False)[['Config type','Label','2jj','eig','Energy']].to_numpy(dtype=str)
+        df = pd.read_csv(root_dir + 'all_converged.csv').sort_values('Energy',ascending=False)[['Config type','Label','2jj','eig','Energy','Configuration']].to_numpy(dtype=str)
 
         if os.path.exists(root_dir+'/transitions'):
             shutil.rmtree(root_dir+'/transitions')
 
         for i in range(len(df)):
-            f_config_type,f_label,f_jj2,f_eig,f_en=df[i]
+            f_config_type,f_label,f_jj2,f_eig,f_en,f_config=df[i]
             f_qn = ','.join([f_config_type,f_label,f_jj2,f_eig])
 
             for j in df[i+1:]:
-                i_config_type,i_label,i_jj2,i_eig,i_en=j
+                i_config_type,i_label,i_jj2,i_eig,i_en,i_config=j
 
                 i_qn = ','.join([i_config_type,i_label,i_jj2,i_eig])
                 en_dif = float(f_en) - float(i_en)
@@ -781,7 +807,7 @@ if rank == 0:
                     trans_type = 'satellite'
                     total_sat_trans+=1
                 
-                if valid_trans:work_pool.append(i_qn+';'+'5:'+trans_type+','+f_qn+','+str(en_dif))
+                if valid_trans:work_pool.append(i_qn+';'+'5:'+trans_type+','+f_qn+','+str(en_dif)+','+i_config+','+f_config)
 
 
 
@@ -822,9 +848,7 @@ if rank == 0:
             else:
                 tot_count+=1
                 slave_rank, calc_res = str(comm.recv(source=MPI.ANY_SOURCE)).split("|")
-                if tot_count>=total_transitions//100:
-                    pbar_all.update(tot_count)
-                    tot_count=0
+                
 
                 
 
@@ -832,27 +856,35 @@ if rank == 0:
                 _ , calc_res_params = calc_res_vals.split(":")
 
                 if _!='-1':
-                    trans_type,f_config_type,f_label,f_jj2,f_eig,rate,en_dif=calc_res_params.split(',')
+                    trans_type,f_config_type,f_label,f_jj2,f_eig,rate,en_dif,i_config,f_config=calc_res_params.split(',')
                     f_qn=','.join([f_config_type,f_label,f_jj2,f_eig])
 
                     if trans_type == 'diagram':
-                        rad_arr.append([i_label,i_jj2,i_eig,f_label,f_jj2,f_eig,rate,en_dif,str(float(rate)*hbar)])
+                        rad_arr.append([i_label,i_jj2,i_eig,i_config,f_label,f_jj2,f_eig,f_config,rate,en_dif,str(float(rate)*hbar)])
                         rad_count+=1
-                        if rad_count>=total_rad_trans//20:
-                            pbar_rad.update(rad_count)
-                            rad_count=0
+                        
+                            
                     if trans_type == 'auger':
-                        aug_arr.append([i_label,i_jj2,i_eig,f_label,f_jj2,f_eig,rate,en_dif,str(float(rate)*hbar)])
+                        aug_arr.append([i_label,i_jj2,i_eig,i_config,f_label,f_jj2,f_eig,f_config,rate,en_dif,str(float(rate)*hbar)])
                         aug_count+=1
-                        if aug_count>=total_aug_trans//20:
-                            pbar_aug.update(aug_count)
-                            aug_count=0
+                        
+                            
                     else:
-                        sat_arr.append([i_label,i_jj2,i_eig,f_label,f_jj2,f_eig,rate,en_dif,str(float(rate)*hbar)])
+                        sat_arr.append([i_label,i_jj2,i_eig,i_config,f_label,f_jj2,f_eig,f_config,rate,en_dif,str(float(rate)*hbar)])
                         sat_count+=1
-                        if sat_count>=total_sat_trans//20:
-                            pbar_sat.update(sat_count)
-                            sat_count=0
+                        
+                            
+
+                    if tot_count>=total_transitions//1000:
+                        pbar_all.update(tot_count)
+                        tot_count=0
+                        pbar_rad.update(rad_count)
+                        rad_count=0
+                        pbar_aug.update(aug_count)
+                        aug_count=0
+                        pbar_sat.update(sat_count)
+                        sat_count=0
+
 
 
                 idle_slaves.append(slave_rank)
@@ -861,10 +893,11 @@ if rank == 0:
         pbar_rad.close()
         pbar_aug.close()
         pbar_sat.close()
+        os.system('clear')
 
-        pd.DataFrame(rad_arr,columns=['Initial Config Label','Initial Config 2jj','Initial Config eig','Final Config Label','Final Config 2jj','Final Config eig','Rate (s-1)','Energy (eV)','Energy width (eV)']).sort_values('Rate (s-1)').to_csv(root_dir+'rates_rad.csv',index=False)
-        pd.DataFrame(aug_arr,columns=['Initial Config Label','Initial Config 2jj','Initial Config eig','Final Config Label','Final Config 2jj','Final Config eig','Rate (s-1)','Energy (eV)','Energy width (eV)']).sort_values('Rate (s-1)').to_csv(root_dir+'rates_auger.csv',index=False)
-        pd.DataFrame(sat_arr,columns=['Initial Config Label','Initial Config 2jj','Initial Config eig','Final Config Label','Final Config 2jj','Final Config eig','Rate (s-1)','Energy (eV)','Energy width (eV)']).sort_values('Rate (s-1)').to_csv(root_dir+'rates_satellite.csv',index=False)
+        pd.DataFrame(rad_arr,columns=['Initial Config Label','Initial Config 2jj','Initial Config eig','Initial Config','Final Config Label','Final Config 2jj','Final Config eig','Final Config','Rate (s-1)','Energy (eV)','Energy width (eV)']).sort_values('Rate (s-1)').to_csv(root_dir+'rates_rad.csv',index=False)
+        pd.DataFrame(aug_arr,columns=['Initial Config Label','Initial Config 2jj','Initial Config eig','Initial Config','Final Config Label','Final Config 2jj','Final Config eig','Final Config','Rate (s-1)','Energy (eV)','Energy width (eV)']).sort_values('Rate (s-1)').to_csv(root_dir+'rates_auger.csv',index=False)
+        pd.DataFrame(sat_arr,columns=['Initial Config Label','Initial Config 2jj','Initial Config eig','Initial Config','Final Config Label','Final Config 2jj','Final Config eig','Final Config','Rate (s-1)','Energy (eV)','Energy width (eV)']).sort_values('Rate (s-1)').to_csv(root_dir+'rates_satellite.csv',index=False)
     if calc_step == 3 or calc_step ==4:
         comm.Abort()
 
