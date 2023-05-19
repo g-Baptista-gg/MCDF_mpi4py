@@ -421,18 +421,15 @@ def get_rate(i_qn,f_qn,trans_type,en_dif):
     with open(cwd+'transition.f06','r',encoding='latin-1') as f06_file:
         f06_lines = f06_file.readlines()
 
-
-        for i in range(len(f06_lines)):
-            if trans_type == 'auger':
-                #os.system('clear')
-                #print(i_qn,f_qn,flush=True)
-                #comm.Abort()
-                if '(sec-1)' in f06_lines[-i-1]:
-                    #print('Auger: ',f06_lines[-i-1].split()[0],flush=True)
-                    rate=f06_lines[-i-1].split()[0]
-                    shutil.rmtree(cwd)
-                    return rate
-            else:
+        if trans_type == 'auger':
+            for i in range(len(f06_lines)):
+                    if '(sec-1)' in f06_lines[-i-1]:
+                        #print('Auger: ',f06_lines[-i-1].split()[0],flush=True)
+                        rate=f06_lines[-i-1].split()[0]
+                        shutil.rmtree(cwd)
+                        return rate
+        else:
+            for i in range(len(f06_lines)):
                 if 'and total transition rate is:' in f06_lines[-i-1]:
                     #print('RAD: ',f06_lines[-i-1].split(':')[1].split()[0],flush=True)
                     rate=f06_lines[-i-1].split(':')[1].split()[0]
