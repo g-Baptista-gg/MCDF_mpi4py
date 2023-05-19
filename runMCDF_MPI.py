@@ -23,18 +23,6 @@ root_dir=None
 mdfgmeFile = '	   nblipa=75 tmp_dir=./tmp/\n	   f05FileName\n	   0.\n'
 mcdf_exe='mcdfgme2019.exe'
 
-rad_config_n_labels = pd.read_csv('1hole_configurations.txt',header=None).values.tolist()
-for i in rad_config_n_labels:
-    i[1]= 'rad,'+i[1]
-
-aug_config_n_labels=pd.read_csv('2holes_configurations.txt',header=None).values.tolist()
-for i in aug_config_n_labels:
-    i[1]= 'aug,'+i[1]
-
-config_n_labels = rad_config_n_labels + aug_config_n_labels
-#config_n_labels = pd.read_csv('1hole_configurations.txt',header=None).values.tolist()+pd.read_csv('2holes_configurations.txt',header=None).values.tolist()
-config_n_labels_dict={config_n_labels[i][1]:config_n_labels[i][0] for i in range(len(config_n_labels))}
-
 
 
 def qn_to_dir(quantum_numbers,root_dir):
@@ -226,7 +214,7 @@ def check_convergence_gp(f06_file):
 
 
 def find_jj2(quantum_numbers):
-    print(quantum_numbers,flush=True)
+    #print(quantum_numbers,flush=True)
     cwd = qn_to_dir(quantum_numbers=quantum_numbers,root_dir=root_dir)
     config=label_to_config(quantum_numbers)
     if not (os.path.exists(cwd)):
@@ -442,12 +430,13 @@ def get_rate(i_qn,f_qn,trans_type,en_dif):
                 if '(sec-1)' in f06_lines[-i-1]:
                     #print('Auger: ',f06_lines[-i-1].split()[0],flush=True)
                     rate=f06_lines[-i-1].split()[0]
+                    shutil.rmtree(cwd)
                     return rate
             else:
                 if 'and total transition rate is:' in f06_lines[-i-1]:
                     #print('RAD: ',f06_lines[-i-1].split(':')[1].split()[0],flush=True)
                     rate=f06_lines[-i-1].split(':')[1].split()[0]
-
+                    shutil.rmtree(cwd)
                     return rate
         
         shutil.rmtree(cwd)
@@ -576,6 +565,7 @@ def setupTemplates(atomic_number,electron_number):
 
 
 # Program starts by master asking for user inputs for atomic number and electron number, setting up f05 templates and broadcasting to slave ranks
+calc_step=None
 if rank==0:
     os.system('clear')
 
@@ -627,9 +617,36 @@ if rank==0:
     #print('Done setup templates')
     root_dir = os.getcwd()+'/'+directory_name+'/'
 
+
+
+
 f05Template, f05Template_10steps, f05Template_10steps_Forbs,f05Template_rad,f05Template_aug = comm.bcast(templates,root=0)
 root_dir = comm.bcast(root_dir,root=0)
 electron_number = comm.bcast(electron_number,root=0)
+
+calc_step=comm.bcast(calc_step,root=0)
+
+if calc_step==0:
+    rad_config_n_labels = pd.read_csv('1hole_configurations.txt',header=None).values.tolist()
+    for i in rad_config_n_labels:
+        i[1]= 'rad,'+i[1]
+
+    aug_config_n_labels=pd.read_csv('2holes_configurations.txt',header=None).values.tolist()
+    for i in aug_config_n_labels:
+        i[1]= 'aug,'+i[1]
+else:
+    rad_config_n_labels = pd.read_csv(root_dir+'backup_1hole_configurations.txt',header=None).values.tolist()
+    for i in rad_config_n_labels:
+        i[1]= 'rad,'+i[1]
+
+    aug_config_n_labels=pd.read_csv(root_dir+'backup_2holes_configurations.txt',header=None).values.tolist()
+    for i in aug_config_n_labels:
+        i[1]= 'aug,'+i[1]
+
+
+config_n_labels = rad_config_n_labels + aug_config_n_labels
+config_n_labels_dict={config_n_labels[i][1]:config_n_labels[i][0] for i in range(len(config_n_labels))}
+
 
 # calc_res structure: "quantum_numbers;calc_method"
 #
@@ -840,6 +857,7 @@ if rank == 0:
 
 
             if len(work_pool)!=0 and len(idle_slaves)!=0:
+		#os.sys('clear')
                 #print(f'Work: {work_pool[0]}\n',flush=True)
                 # Gives a job from pool to slave.
                 slave_rank = idle_slaves.pop(0)
@@ -875,7 +893,7 @@ if rank == 0:
                         
                             
 
-                    if tot_count>=total_transitions//1000:
+                    if tot_count>=total_transitions//1000000:
                         pbar_all.update(tot_count)
                         tot_count=0
                         pbar_rad.update(rad_count)
