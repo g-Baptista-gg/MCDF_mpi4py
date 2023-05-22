@@ -426,14 +426,14 @@ def get_rate(i_qn,f_qn,trans_type,en_dif):
                     if '(sec-1)' in f06_lines[-i-1]:
                         #print('Auger: ',f06_lines[-i-1].split()[0],flush=True)
                         rate=f06_lines[-i-1].split()[0]
-                        shutil.rmtree(cwd)
+                        #shutil.rmtree(cwd)
                         return rate
         else:
             for i in range(len(f06_lines)):
                 if 'and total transition rate is:' in f06_lines[-i-1]:
                     #print('RAD: ',f06_lines[-i-1].split(':')[1].split()[0],flush=True)
                     rate=f06_lines[-i-1].split(':')[1].split()[0]
-                    shutil.rmtree(cwd)
+                    #shutil.rmtree(cwd)
                     return rate
         
         shutil.rmtree(cwd)
@@ -868,6 +868,8 @@ if rank == 0:
                 
 
                 i_qn,calc_res_vals = calc_res.split(';')
+                i_config_type,i_label,i_jj2,i_eig=i_qn.split(',')
+                
                 _ , calc_res_params = calc_res_vals.split(":")
 
                 if _!='-1':
@@ -912,10 +914,12 @@ if rank == 0:
         pbar_sat.close()
         os.system('clear')
 
-        pd.DataFrame(rad_arr,columns=['Initial Config Label','Initial Config 2jj','Initial Config eig','Initial Config','Final Config Label','Final Config 2jj','Final Config eig','Final Config','Rate (s-1)','Energy (eV)','Energy width (eV)']).sort_values('Rate (s-1)').to_csv(root_dir+'rates_rad.csv',index=False)
-        pd.DataFrame(aug_arr,columns=['Initial Config Label','Initial Config 2jj','Initial Config eig','Initial Config','Final Config Label','Final Config 2jj','Final Config eig','Final Config','Rate (s-1)','Energy (eV)','Energy width (eV)']).sort_values('Rate (s-1)').to_csv(root_dir+'rates_auger.csv',index=False)
-        pd.DataFrame(sat_arr,columns=['Initial Config Label','Initial Config 2jj','Initial Config eig','Initial Config','Final Config Label','Final Config 2jj','Final Config eig','Final Config','Rate (s-1)','Energy (eV)','Energy width (eV)']).sort_values('Rate (s-1)').to_csv(root_dir+'rates_satellite.csv',index=False)
+        pd.DataFrame(rad_arr,columns=['Initial Config Label','Initial Config 2jj','Initial Config eig','Initial Config','Final Config Label','Final Config 2jj','Final Config eig','Final Config','Rate (s-1)','Energy (eV)','Energy width (eV)']).sort_values('Rate (s-1)',ascending=False).to_csv(root_dir+'rates_rad.csv',index=False)
+        pd.DataFrame(aug_arr,columns=['Initial Config Label','Initial Config 2jj','Initial Config eig','Initial Config','Final Config Label','Final Config 2jj','Final Config eig','Final Config','Rate (s-1)','Energy (eV)','Energy width (eV)']).sort_values('Rate (s-1)',ascending=False).to_csv(root_dir+'rates_auger.csv',index=False)
+        pd.DataFrame(sat_arr,columns=['Initial Config Label','Initial Config 2jj','Initial Config eig','Initial Config','Final Config Label','Final Config 2jj','Final Config eig','Final Config','Rate (s-1)','Energy (eV)','Energy width (eV)']).sort_values('Rate (s-1)',ascending=False).to_csv(root_dir+'rates_satellite.csv',index=False)
     if calc_step == 3 or calc_step ==4:
+        df_rad=pd.read_csv(root_dir+'rates_rad.csv')
+        print(df_rad)
         comm.Abort()
 
     if calc_step not in [0,1,2,3,4]:
