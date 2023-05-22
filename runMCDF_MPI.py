@@ -874,18 +874,20 @@ if rank == 0:
                     trans_type,f_config_type,f_label,f_jj2,f_eig,rate,en_dif,i_config,f_config=calc_res_params.split(',')
                     f_qn=','.join([f_config_type,f_label,f_jj2,f_eig])
 
+                    rate=float(rate)*(float(i_jj2)+1)
+
                     if trans_type == 'diagram':
-                        rad_arr.append([i_label,i_jj2,i_eig,i_config,f_label,f_jj2,f_eig,f_config,rate,en_dif,str(float(rate)*hbar)])
+                        rad_arr.append([i_label,i_jj2,i_eig,i_config,f_label,f_jj2,f_eig,f_config,rate,en_dif,rate*hbar])
                         rad_count+=1
                         
                             
                     if trans_type == 'auger':
-                        aug_arr.append([i_label,i_jj2,i_eig,i_config,f_label,f_jj2,f_eig,f_config,rate,en_dif,str(float(rate)*hbar)])
+                        aug_arr.append([i_label,i_jj2,i_eig,i_config,f_label,f_jj2,f_eig,f_config,rate,en_dif,rate*hbar])
                         aug_count+=1
                         
                             
                     else:
-                        sat_arr.append([i_label,i_jj2,i_eig,i_config,f_label,f_jj2,f_eig,f_config,rate,en_dif,str(float(rate)*hbar)])
+                        sat_arr.append([i_label,i_jj2,i_eig,i_config,f_label,f_jj2,f_eig,f_config,rate,en_dif,rate*hbar])
                         sat_count+=1
                         
                             
