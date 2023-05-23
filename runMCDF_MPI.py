@@ -1,7 +1,9 @@
 from mpi4py import MPI
 import pandas as pd
 import os, subprocess, shutil, sys
-import time,tqdm,re
+import time,tqdm,re , pprint
+import numpy as np
+
 
 # For debugging: mpirun -n $(nproc) xterm -hold -e python runMCDF_MPI.py 
 # For max usage of physical threads: mpirun --use-hwthread-cpus python3 runMCDF_MPI.py
@@ -883,7 +885,7 @@ if rank == 0:
                         rad_count+=1
                         
                             
-                    if trans_type == 'auger':
+                    elif trans_type == 'auger':
                         aug_arr.append([i_label,i_jj2,i_eig,i_config,f_label,f_jj2,f_eig,f_config,rate,en_dif,rate*hbar])
                         aug_count+=1
                         
@@ -918,20 +920,64 @@ if rank == 0:
         pd.DataFrame(aug_arr,columns=['Initial Config Label','Initial Config 2jj','Initial Config eig','Initial Config','Final Config Label','Final Config 2jj','Final Config eig','Final Config','Rate (s-1)','Energy (eV)','Energy width (eV)']).sort_values('Rate (s-1)',ascending=False).to_csv(root_dir+'rates_auger.csv',index=False)
         pd.DataFrame(sat_arr,columns=['Initial Config Label','Initial Config 2jj','Initial Config eig','Initial Config','Final Config Label','Final Config 2jj','Final Config eig','Final Config','Rate (s-1)','Energy (eV)','Energy width (eV)']).sort_values('Rate (s-1)',ascending=False).to_csv(root_dir+'rates_satellite.csv',index=False)
     if calc_step == 3 or calc_step ==4:
-        df_rad=pd.read_csv(root_dir+'rates_rad.csv')
-        grouped_df = df_rad.groupby(['Initial Config Label','Initial Config 2jj','Initial Config eig'])['Rate (s-1)'].sum().reset_index()
 
-        rate_sum_array=[]
-        for index, row in grouped_df.iterrows():
+        df_radrate=pd.read_csv(root_dir+'rates_rad.csv')
+        grouped_df_radrate = df_radrate.groupby(['Initial Config Label','Initial Config 2jj','Initial Config eig'])['Rate (s-1)'].sum().reset_index()
+
+        df_augrate=pd.read_csv(root_dir+'rates_auger.csv')
+        grouped_df_augrate = df_augrate.groupby(['Initial Config Label','Initial Config 2jj','Initial Config eig'])['Rate (s-1)'].sum().reset_index()
+
+        df_satrate=pd.read_csv(root_dir+'rates_satellite.csv')
+        grouped_df_satrate = df_satrate.groupby(['Initial Config Label','Initial Config 2jj','Initial Config eig'])['Rate (s-1)'].sum().reset_index()
+
+        radrate_sum_dict={}
+        for index, row in grouped_df_radrate.iterrows():
             key = f"{row['Initial Config Label']},{row['Initial Config 2jj']},{row['Initial Config eig']}"
             sum_value = row['Rate (s-1)']
-            rate_sum_array.append([key, sum_value])
+            radrate_sum_dict[key]=sum_value
+        
+        augrate_sum_dict={}
+        for index, row in grouped_df_augrate.iterrows():
+            key = f"{row['Initial Config Label']},{row['Initial Config 2jj']},{row['Initial Config eig']}"
+            sum_value = row['Rate (s-1)']
+            augrate_sum_dict[key]=sum_value
 
-        rate_sum_dict={x[0]:x[1] for x in rate_sum_array}
-        print(rate_sum_dict)
+        satrate_sum_dict={}
+        for index, row in grouped_df_satrate.iterrows():
+            key = f"{row['Initial Config Label']},{row['Initial Config 2jj']},{row['Initial Config eig']}"
+            sum_value = row['Rate (s-1)']
+            satrate_sum_dict[key]=sum_value
 
-        comm.Abort()
+        totrate_sum_dict={}
+        for key in radrate_sum_dict:
+            totrate_sum_dict[key]=radrate_sum_dict[key]
+        for key in augrate_sum_dict:
+            if totrate_sum_dict.get(key) is None:
+                totrate_sum_dict[key] = augrate_sum_dict[key]
+            else:
+                totrate_sum_dict[key] += augrate_sum_dict[key]
+        for key in satrate_sum_dict:
+            if totrate_sum_dict.get(key) is None:
+                totrate_sum_dict[key] = satrate_sum_dict[key]
+            else:
+                totrate_sum_dict[key] += satrate_sum_dict[key]
+        
+        df_radrate_np = df_radrate.values
 
+        
+
+        for i in range(len(df_radrate_np)):
+            ini_qn = ','.join([df_radrate_np[i][0],str(df_radrate_np[i][1]),str(df_radrate_np[i][2])])
+            ini_tot_rate = totrate_sum_dict[ini_qn]
+    
+            fin_qn = ','.join([df_radrate_np[i][4],str(df_radrate_np[i][5]),str(df_radrate_np[i][6])])
+            fin_tot_rate = totrate_sum_dict.get(fin_qn)
+
+            if fin_tot_rate is None:fin_tot_rate = 0
+
+            df_radrate_np[i][-1]=hbar*(ini_tot_rate+fin_tot_rate)
+        pprint.pprint(df_radrate_np)
+         
     if calc_step not in [0,1,2,3,4]:
         comm.Abort()
 
