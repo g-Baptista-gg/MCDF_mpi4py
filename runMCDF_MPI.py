@@ -23,18 +23,6 @@ root_dir=None
 mdfgmeFile = '	   nblipa=75 tmp_dir=./tmp/\n	   f05FileName\n	   0.\n'
 mcdf_exe='mcdfgme2019.exe'
 
-rad_config_n_labels = pd.read_csv('1hole_configurations.txt',header=None).values.tolist()
-for i in rad_config_n_labels:
-    i[1]= 'rad,'+i[1]
-
-aug_config_n_labels=pd.read_csv('2holes_configurations.txt',header=None).values.tolist()
-for i in aug_config_n_labels:
-    i[1]= 'aug,'+i[1]
-
-config_n_labels = rad_config_n_labels + aug_config_n_labels
-#config_n_labels = pd.read_csv('1hole_configurations.txt',header=None).values.tolist()+pd.read_csv('2holes_configurations.txt',header=None).values.tolist()
-config_n_labels_dict={config_n_labels[i][1]:config_n_labels[i][0] for i in range(len(config_n_labels))}
-
 
 
 def qn_to_dir(quantum_numbers,root_dir):
@@ -226,7 +214,7 @@ def check_convergence_gp(f06_file):
 
 
 def find_jj2(quantum_numbers):
-    print(quantum_numbers,flush=True)
+    #print(quantum_numbers,flush=True)
     cwd = qn_to_dir(quantum_numbers=quantum_numbers,root_dir=root_dir)
     config=label_to_config(quantum_numbers)
     if not (os.path.exists(cwd)):
@@ -433,21 +421,19 @@ def get_rate(i_qn,f_qn,trans_type,en_dif):
     with open(cwd+'transition.f06','r',encoding='latin-1') as f06_file:
         f06_lines = f06_file.readlines()
 
-
-        for i in range(len(f06_lines)):
-            if trans_type == 'auger':
-                #os.system('clear')
-                #print(i_qn,f_qn,flush=True)
-                #comm.Abort()
-                if '(sec-1)' in f06_lines[-i-1]:
-                    #print('Auger: ',f06_lines[-i-1].split()[0],flush=True)
-                    rate=f06_lines[-i-1].split()[0]
-                    return rate
-            else:
+        if trans_type == 'auger':
+            for i in range(len(f06_lines)):
+                    if '(sec-1)' in f06_lines[-i-1]:
+                        #print('Auger: ',f06_lines[-i-1].split()[0],flush=True)
+                        rate=f06_lines[-i-1].split()[0]
+                        #shutil.rmtree(cwd)
+                        return rate
+        else:
+            for i in range(len(f06_lines)):
                 if 'and total transition rate is:' in f06_lines[-i-1]:
                     #print('RAD: ',f06_lines[-i-1].split(':')[1].split()[0],flush=True)
                     rate=f06_lines[-i-1].split(':')[1].split()[0]
-
+                    #shutil.rmtree(cwd)
                     return rate
         
         shutil.rmtree(cwd)
@@ -576,6 +562,7 @@ def setupTemplates(atomic_number,electron_number):
 
 
 # Program starts by master asking for user inputs for atomic number and electron number, setting up f05 templates and broadcasting to slave ranks
+calc_step=None
 if rank==0:
     os.system('clear')
 
@@ -627,9 +614,36 @@ if rank==0:
     #print('Done setup templates')
     root_dir = os.getcwd()+'/'+directory_name+'/'
 
+
+
+
 f05Template, f05Template_10steps, f05Template_10steps_Forbs,f05Template_rad,f05Template_aug = comm.bcast(templates,root=0)
 root_dir = comm.bcast(root_dir,root=0)
 electron_number = comm.bcast(electron_number,root=0)
+
+calc_step=comm.bcast(calc_step,root=0)
+
+if calc_step==0:
+    rad_config_n_labels = pd.read_csv('1hole_configurations.txt',header=None).values.tolist()
+    for i in rad_config_n_labels:
+        i[1]= 'rad,'+i[1]
+
+    aug_config_n_labels=pd.read_csv('2holes_configurations.txt',header=None).values.tolist()
+    for i in aug_config_n_labels:
+        i[1]= 'aug,'+i[1]
+else:
+    rad_config_n_labels = pd.read_csv(root_dir+'backup_1hole_configurations.txt',header=None).values.tolist()
+    for i in rad_config_n_labels:
+        i[1]= 'rad,'+i[1]
+
+    aug_config_n_labels=pd.read_csv(root_dir+'backup_2holes_configurations.txt',header=None).values.tolist()
+    for i in aug_config_n_labels:
+        i[1]= 'aug,'+i[1]
+
+
+config_n_labels = rad_config_n_labels + aug_config_n_labels
+config_n_labels_dict={config_n_labels[i][1]:config_n_labels[i][0] for i in range(len(config_n_labels))}
+
 
 # calc_res structure: "quantum_numbers;calc_method"
 #
@@ -779,7 +793,7 @@ if rank == 0:
 
     if calc_step == 2 or calc_step==4:
         total_rad_trans,total_aug_trans,total_sat_trans=0,0,0
-        df = pd.read_csv(root_dir + 'all_converged.csv').sort_values('Energy',ascending=False)[['Config type','Label','2jj','eig','Energy','Configuration']].to_numpy(dtype=str)
+        df = pd.read_csv(root_dir + 'all_converged.csv').sort_values('Energy',ascending=True)[['Config type','Label','2jj','eig','Energy','Configuration']].to_numpy(dtype=str)
 
         if os.path.exists(root_dir+'/transitions'):
             shutil.rmtree(root_dir+'/transitions')
@@ -792,7 +806,7 @@ if rank == 0:
                 i_config_type,i_label,i_jj2,i_eig,i_en,i_config=j
 
                 i_qn = ','.join([i_config_type,i_label,i_jj2,i_eig])
-                en_dif = float(f_en) - float(i_en)
+                en_dif = float(i_en) - float(f_en)
                 
                 valid_trans=True
                 if   i_config_type == 'aug' and f_config_type == 'rad':
@@ -840,6 +854,7 @@ if rank == 0:
 
 
             if len(work_pool)!=0 and len(idle_slaves)!=0:
+		#os.sys('clear')
                 #print(f'Work: {work_pool[0]}\n',flush=True)
                 # Gives a job from pool to slave.
                 slave_rank = idle_slaves.pop(0)
@@ -853,29 +868,33 @@ if rank == 0:
                 
 
                 i_qn,calc_res_vals = calc_res.split(';')
+                i_config_type,i_label,i_jj2,i_eig=i_qn.split(',')
+                
                 _ , calc_res_params = calc_res_vals.split(":")
 
                 if _!='-1':
                     trans_type,f_config_type,f_label,f_jj2,f_eig,rate,en_dif,i_config,f_config=calc_res_params.split(',')
                     f_qn=','.join([f_config_type,f_label,f_jj2,f_eig])
 
+                    rate=float(rate)*(float(i_jj2)+1)
+
                     if trans_type == 'diagram':
-                        rad_arr.append([i_label,i_jj2,i_eig,i_config,f_label,f_jj2,f_eig,f_config,rate,en_dif,str(float(rate)*hbar)])
+                        rad_arr.append([i_label,i_jj2,i_eig,i_config,f_label,f_jj2,f_eig,f_config,rate,en_dif,rate*hbar])
                         rad_count+=1
                         
                             
                     if trans_type == 'auger':
-                        aug_arr.append([i_label,i_jj2,i_eig,i_config,f_label,f_jj2,f_eig,f_config,rate,en_dif,str(float(rate)*hbar)])
+                        aug_arr.append([i_label,i_jj2,i_eig,i_config,f_label,f_jj2,f_eig,f_config,rate,en_dif,rate*hbar])
                         aug_count+=1
                         
                             
                     else:
-                        sat_arr.append([i_label,i_jj2,i_eig,i_config,f_label,f_jj2,f_eig,f_config,rate,en_dif,str(float(rate)*hbar)])
+                        sat_arr.append([i_label,i_jj2,i_eig,i_config,f_label,f_jj2,f_eig,f_config,rate,en_dif,rate*hbar])
                         sat_count+=1
                         
                             
 
-                    if tot_count>=total_transitions//1000:
+                    if tot_count>=total_transitions//1000000:
                         pbar_all.update(tot_count)
                         tot_count=0
                         pbar_rad.update(rad_count)
@@ -895,10 +914,22 @@ if rank == 0:
         pbar_sat.close()
         os.system('clear')
 
-        pd.DataFrame(rad_arr,columns=['Initial Config Label','Initial Config 2jj','Initial Config eig','Initial Config','Final Config Label','Final Config 2jj','Final Config eig','Final Config','Rate (s-1)','Energy (eV)','Energy width (eV)']).sort_values('Rate (s-1)').to_csv(root_dir+'rates_rad.csv',index=False)
-        pd.DataFrame(aug_arr,columns=['Initial Config Label','Initial Config 2jj','Initial Config eig','Initial Config','Final Config Label','Final Config 2jj','Final Config eig','Final Config','Rate (s-1)','Energy (eV)','Energy width (eV)']).sort_values('Rate (s-1)').to_csv(root_dir+'rates_auger.csv',index=False)
-        pd.DataFrame(sat_arr,columns=['Initial Config Label','Initial Config 2jj','Initial Config eig','Initial Config','Final Config Label','Final Config 2jj','Final Config eig','Final Config','Rate (s-1)','Energy (eV)','Energy width (eV)']).sort_values('Rate (s-1)').to_csv(root_dir+'rates_satellite.csv',index=False)
+        pd.DataFrame(rad_arr,columns=['Initial Config Label','Initial Config 2jj','Initial Config eig','Initial Config','Final Config Label','Final Config 2jj','Final Config eig','Final Config','Rate (s-1)','Energy (eV)','Energy width (eV)']).sort_values('Rate (s-1)',ascending=False).to_csv(root_dir+'rates_rad.csv',index=False)
+        pd.DataFrame(aug_arr,columns=['Initial Config Label','Initial Config 2jj','Initial Config eig','Initial Config','Final Config Label','Final Config 2jj','Final Config eig','Final Config','Rate (s-1)','Energy (eV)','Energy width (eV)']).sort_values('Rate (s-1)',ascending=False).to_csv(root_dir+'rates_auger.csv',index=False)
+        pd.DataFrame(sat_arr,columns=['Initial Config Label','Initial Config 2jj','Initial Config eig','Initial Config','Final Config Label','Final Config 2jj','Final Config eig','Final Config','Rate (s-1)','Energy (eV)','Energy width (eV)']).sort_values('Rate (s-1)',ascending=False).to_csv(root_dir+'rates_satellite.csv',index=False)
     if calc_step == 3 or calc_step ==4:
+        df_rad=pd.read_csv(root_dir+'rates_rad.csv')
+        grouped_df = df_rad.groupby(['Initial Config Label','Initial Config 2jj','Initial Config eig'])['Rate (s-1)'].sum().reset_index()
+
+        rate_sum_array=[]
+        for index, row in grouped_df.iterrows():
+            key = f"{row['Initial Config Label']},{row['Initial Config 2jj']},{row['Initial Config eig']}"
+            sum_value = row['Rate (s-1)']
+            rate_sum_array.append([key, sum_value])
+
+        rate_sum_dict={x[0]:x[1] for x in rate_sum_array}
+        print(rate_sum_dict)
+
         comm.Abort()
 
     if calc_step not in [0,1,2,3,4]:
