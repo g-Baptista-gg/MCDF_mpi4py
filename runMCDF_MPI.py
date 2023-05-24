@@ -962,21 +962,118 @@ if rank == 0:
             else:
                 totrate_sum_dict[key] += satrate_sum_dict[key]
         
+        
+
+
+        state_multiplicy_dict = {}
+        df_states = pd.read_csv(root_dir+'all_converged.csv')[['Label','2jj']]
+        grouped_df_states=df_states.groupby('Label').agg(Count=('2jj', 'count'), Sum_of_2jj=('2jj', 'sum')).reset_index()
+
+        grouped_df_states['Multiplicity'] = grouped_df_states['Sum_of_2jj'] + grouped_df_states['Count']
+        print(grouped_df_states)
+        
+        grouped_df_states.reset_index(drop=True, inplace=True)
+    
+        for index, row in grouped_df_states.iterrows():
+            key = row['Label']
+            multiplicity = row['Multiplicity']
+            state_multiplicy_dict[key]=multiplicity
+        
+        spectrum_header = ['Initial Config Label','Initial Config 2jj','Initial Config eig','Initial Config','Final Config Label','Final Config 2jj','Final Config eig','Final Config','Intensity (a.u.)','Energy (eV)','Energy width (eV)','Branching Ratio']
+
+
+        df_radrate['Branching Ratio'] = 0
         df_radrate_np = df_radrate.values
 
         
-
         for i in range(len(df_radrate_np)):
             ini_qn = ','.join([df_radrate_np[i][0],str(df_radrate_np[i][1]),str(df_radrate_np[i][2])])
             ini_tot_rate = totrate_sum_dict[ini_qn]
     
             fin_qn = ','.join([df_radrate_np[i][4],str(df_radrate_np[i][5]),str(df_radrate_np[i][6])])
             fin_tot_rate = totrate_sum_dict.get(fin_qn)
+            
+            ini_jj2=df_radrate_np[i][1]
 
             if fin_tot_rate is None:fin_tot_rate = 0
 
-            df_radrate_np[i][-1]=hbar*(ini_tot_rate+fin_tot_rate)
-        pprint.pprint(df_radrate_np)
+            trans_tot_rate=ini_tot_rate+fin_tot_rate
+
+            branching_ratio=df_radrate_np[i][8]/trans_tot_rate
+            
+            df_radrate_np[i][10]=hbar*trans_tot_rate # Overwrite partial energy width with total transition Energy width
+            df_radrate_np[i][11]= branching_ratio    # Add Branching Ratio
+
+            multiplicity_ratio = (df_radrate_np[i][1]+1)/state_multiplicy_dict[df_radrate_np[i][0]]
+            
+            df_radrate_np[i][8] = multiplicity_ratio * branching_ratio # Overwrite partial Rate with Intensity in a.u.
+
+        df = pd.DataFrame(df_radrate_np)
+        df.to_csv(root_dir+'spectrum_diagram.csv',header=spectrum_header,index=False)
+
+        df_augrate['Branching Ratio'] = 0
+        df_augrate_np = df_augrate.values
+
+        
+        for i in range(len(df_augrate_np)):
+            ini_qn = ','.join([df_augrate_np[i][0],str(df_augrate_np[i][1]),str(df_augrate_np[i][2])])
+            ini_tot_rate = totrate_sum_dict[ini_qn]
+    
+            fin_qn = ','.join([df_augrate_np[i][4],str(df_augrate_np[i][5]),str(df_augrate_np[i][6])])
+            fin_tot_rate = totrate_sum_dict.get(fin_qn)
+            
+            ini_jj2=df_augrate_np[i][1]
+
+            if fin_tot_rate is None:fin_tot_rate = 0
+
+            trans_tot_rate=ini_tot_rate+fin_tot_rate
+
+            branching_ratio=df_augrate_np[i][8]/trans_tot_rate
+            
+            df_augrate_np[i][10]=hbar*trans_tot_rate # Overwrite partial energy width with total transition Energy width
+            df_augrate_np[i][11]= branching_ratio    # Add Branching Ratio
+
+            multiplicity_ratio = (df_augrate_np[i][1]+1)/state_multiplicy_dict[df_augrate_np[i][0]]
+            
+            df_augrate_np[i][8] = multiplicity_ratio * branching_ratio # Overwrite partial Rate with Intensity in a.u.
+
+        df = pd.DataFrame(df_augrate_np)
+        df.to_csv(root_dir+'spectrum_auger.csv',header=spectrum_header,index=False)
+
+        df_satrate['Branching Ratio'] = 0
+        df_satrate_np = df_satrate.values
+
+        
+        for i in range(len(df_satrate_np)):
+            ini_qn = ','.join([df_satrate_np[i][0],str(df_satrate_np[i][1]),str(df_satrate_np[i][2])])
+            ini_tot_rate = totrate_sum_dict[ini_qn]
+    
+            fin_qn = ','.join([df_satrate_np[i][4],str(df_satrate_np[i][5]),str(df_satrate_np[i][6])])
+            fin_tot_rate = totrate_sum_dict.get(fin_qn)
+            
+            ini_jj2=df_satrate_np[i][1]
+
+            if fin_tot_rate is None:fin_tot_rate = 0
+
+            trans_tot_rate=ini_tot_rate+fin_tot_rate
+
+            branching_ratio=df_satrate_np[i][8]/trans_tot_rate
+            
+            df_satrate_np[i][10]=hbar*trans_tot_rate # Overwrite partial energy width with total transition Energy width
+            df_satrate_np[i][11]= branching_ratio    # Add Branching Ratio
+
+            multiplicity_ratio = (df_satrate_np[i][1]+1)/state_multiplicy_dict[df_satrate_np[i][0]]
+            
+            df_satrate_np[i][8] = multiplicity_ratio * branching_ratio # Overwrite partial Rate with Intensity in a.u.
+
+        df = pd.DataFrame(df_satrate_np)
+        df.to_csv(root_dir+'spectrum_satellite.csv',header=spectrum_header,index=False)
+        
+        
+        
+        
+
+            
          
     if calc_step not in [0,1,2,3,4]:
         comm.Abort()
