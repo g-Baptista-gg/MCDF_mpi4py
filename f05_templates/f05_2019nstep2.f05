@@ -29,16 +29,16 @@ end
     neigv=mcdfgmeneigv   icmul=0   iprfgr=0
     norbsc=00  ndep=0   nlec=0   nec=1  :
     nstep=10
-    n y n 50  z=mcdfgmeatomicnumber  1.D-2  0.2  1.  1.
-    n y n 50  z=mcdfgmeatomicnumber  3.D-3  0.2  1.  1.
-    n y n 50  z=mcdfgmeatomicnumber  1.D-3  0.3  1.  1.
-    n y n 50  z=mcdfgmeatomicnumber  3.D-4  0.3  1.  1.
-    n y n 50  z=mcdfgmeatomicnumber  1.D-4  0.5  1.  1.
-    n y n 50  z=mcdfgmeatomicnumber  3.D-5  0.5  1.  1.
-    n y n 50  z=mcdfgmeatomicnumber  1.D-5  0.5  1.  1.
-    n y n 100  z=mcdfgmeatomicnumber  4.D-6  1.  1.  1.
-    n y n 100  z=mcdfgmeatomicnumber  2.D-6  1.  1.  1.
-    n y n 200  z=mcdfgmeatomicnumber  1.D-6  1.  1.  1.
+    n y y  50  z=mcdfgmeatomicnumber  1.D-2  0.2  1.  1.
+    n y y  50  z=mcdfgmeatomicnumber  3.D-3  0.2  1.  1.
+    n y y  50  z=mcdfgmeatomicnumber  1.D-3  0.3  1.  1.
+    n y y  50  z=mcdfgmeatomicnumber  3.D-4  0.3  1.  1.
+    n y y  50  z=mcdfgmeatomicnumber  1.D-4  0.5  1.  1.
+    n y y  50  z=mcdfgmeatomicnumber  3.D-5  0.5  1.  1.
+    n y y  50  z=mcdfgmeatomicnumber  1.D-5  0.5  1.  1.
+    n y y  100  z=mcdfgmeatomicnumber  4.D-6  1.  1.  1.
+    n y y  100  z=mcdfgmeatomicnumber  2.D-6  1.  1.  1.
+    n y y  200  z=mcdfgmeatomicnumber  1.D-6  1.  1.  1.
     lregul=n  modtest=n
     modsolv_orb=y
     mcdfgmefailledorbital

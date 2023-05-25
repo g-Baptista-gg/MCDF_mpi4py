@@ -82,6 +82,7 @@ def check_convergence(f06_file, look_for_orb):
                             k=abs(float(k.strip()))
                         if k>max_overlap: max_overlap=k
                         j+=1
+                    #if max_overlap>1E-5: return False
             else:
                 if 'ETOT (a.u.)' in f06_file[-i-1]:
                     _,en1,en2=f06_file[-i].split()
@@ -708,17 +709,17 @@ if rank == 0:
 
 
         while (len(idle_slaves)<total_ranks-1) or (len(work_pool)>0):
-            print(f'Idle Slaves: {idle_slaves}',flush=True) if len(idle_slaves)>0 else print('',flush=True)
+            #print(f'Idle Slaves: {idle_slaves}',flush=True) if len(idle_slaves)>0 else print('',flush=True)
 
             #pprint.pprint(work_pool)
             if len(work_pool)!=0 and len(idle_slaves)!=0:
-                print(f'Work: {work_pool[0]}\n',flush=True)
+                #print(f'Work: {work_pool[0]}\n',flush=True)
                 # Gives a job from pool to slave.
                 slave_rank = idle_slaves.pop(0)
 
                 comm.send(obj=work_pool.pop(0),dest=int(slave_rank))
             else:
-                print(f'Idle Slaves: {idle_slaves}',flush=True) if len(idle_slaves)>0 else print('',flush=True)
+                #print(f'Idle Slaves: {idle_slaves}',flush=True) if len(idle_slaves)>0 else print('',flush=True)
                 slave_rank, calc_res = str(comm.recv(source=MPI.ANY_SOURCE)).split("|")
                 #print(calc_res)
                 quantum_numbers,calc_res_vals = calc_res.split(';')
@@ -726,11 +727,10 @@ if rank == 0:
                 calc_res_method= int(calc_res_method)
                 if calc_res_method==-1:
                     failed_convergence.append(quantum_numbers.split(','))
-                    print(f'Failed: {quantum_numbers}',flush=True)
+                    #print(f'Failed: {quantum_numbers}',flush=True)
                 elif calc_res_method != 0 :
 
                     if calc_res_method == -3:
-                        print
                         max_jj2=int(calc_res_params)
                         while max_jj2>=0:
                             work_pool.append(quantum_numbers+','+str(max_jj2)+';'+str(calc_res_method)+':')
@@ -744,16 +744,16 @@ if rank == 0:
                             for i in range(max_eig):
                                 if i!=0: work_pool.append(quantum_numbers+','+str(i)+';'+'-2'+':')
                             if eig_test_converged=='0':
-                                print(f'Failed: {quantum_numbers}\n',flush=True)
+                                #print(f'Failed: {quantum_numbers}\n',flush=True)
                                 work_pool.append(quantum_numbers+',0'+';'+'1'+':')
                             else:
-                                print(f'Converged: {calc_res}\n',flush=True)
+                                #print(f'Converged: {calc_res}\n',flush=True)
 
                                 converged_list.append(quantum_numbers.split(',')+ [0] + calc_res_params[-3:])
                     else:
                         work_pool.append(calc_res)
                 else:
-                    print(f'Converged: {calc_res}\n',flush=True)
+                    #print(f'Converged: {calc_res}\n',flush=True)
                     converged_list.append((quantum_numbers+','+calc_res_params).split(','))
                     #print(f'Converged: {quantum_numbers}',flush=True)
 
@@ -772,17 +772,17 @@ if rank == 0:
             work_pool.append(','.join(i)+';4:')
 
         while (len(idle_slaves)<total_ranks-1) or (len(work_pool)>0):
-            print(f'Idle Slaves: {idle_slaves}',flush=True) if len(idle_slaves)>0 else print('',flush=True)
+            #print(f'Idle Slaves: {idle_slaves}',flush=True) if len(idle_slaves)>0 else print('',flush=True)
 
             #pprint.pprint(work_pool)
             if len(work_pool)!=0 and len(idle_slaves)!=0:
-                print(f'Work: {work_pool[0]}\n',flush=True)
+                #print(f'Work: {work_pool[0]}\n',flush=True)
                 # Gives a job from pool to slave.
                 slave_rank = idle_slaves.pop(0)
                 
                 comm.send(obj=work_pool.pop(0),dest=int(slave_rank))
             else:
-                print(f'Idle Slaves: {idle_slaves}',flush=True) if len(idle_slaves)>0 else print('',flush=True)
+                #print(f'Idle Slaves: {idle_slaves}',flush=True) if len(idle_slaves)>0 else print('',flush=True)
                 slave_rank, calc_res = str(comm.recv(source=MPI.ANY_SOURCE)).split("|")
 
                 quantum_numbers,calc_res_vals = calc_res.split(';')
