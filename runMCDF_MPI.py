@@ -3,6 +3,10 @@ import pandas as pd
 import os, subprocess, shutil, sys
 import time,tqdm,re , pprint
 import numpy as np
+import matplotlib.pyplot as plt
+from scipy.special import voigt_profile
+import scienceplots
+plt.style.use(['science'])
 
 
 # For debugging: mpirun -n $(nproc) xterm -hold -e python runMCDF_MPI.py 
@@ -599,13 +603,13 @@ if rank==0:
             print('Please input a valid integer.')
 
 
-    print(('----------------------------------------------------\nComputation Mehtods:\n----------------------------------------------------\nEnergy and WF calculations:\t0\nGet Parameters:\t\t\t1 \nRates:\t\t\t\t2\nSums:\t\t\t\t3\nGet Parameters + Rates + Sums:\t4\n----------------------------------------------------'))
+    print(('-----------------------------------------------------\n|  Computation Mehtods:\t\t\t\t    |\n-----------------------------------------------------\n|  Energy and WF calculations:\t0\t\t    |\n|  Get Parameters:\t\t1\t\t    |\n|  Rates:\t\t\t2\t\t    |\n|  Sums:\t\t\t3 -> Single Thread  |\n|  Get Params + Rates + Sums:\t4 -> Single Thread  |\n|  Plot Spectra:\t\t5 -> Single Thread  |\n-----------------------------------------------------'))
     calc_step_flag=False
     while not calc_step_flag:
         calc_step = input('Please enter what computation should be performed: ')
         if calc_step.isdigit():
             calc_step=int(calc_step)
-            if calc_step in [0,1,2,3,4]:
+            if calc_step in [0,1,2,3,4,5]:
                 calc_step_flag = True
             else:print('Please input a valid option')
         else:print('Please input a valid option')
@@ -1072,10 +1076,22 @@ if rank == 0:
         
         
         
-
-            
+    if calc_step == 5:
+        fig,ax=plt.subplots(1,1,figsize=(5,4))
+        df=pd.read_csv(root_dir+'spectrum_diagram.csv')
+        df=df[['Energy (eV)','Intensity (a.u.)','Energy width (eV)']]
+        df_np=df.to_numpy()
+        pprint.pprint(df_np)
+        en_x=np.linspace(7900,8100,10000)
+        en_y=en_x*0
+        for i in df_np:
+            en_y+=i[1]*voigt_profile(en_x-i[0],0,i[2])
+            if i[0]>en_x[0] and i[0]<en_x[-1]:
+                plt.plot(en_x,i[1]*voigt_profile(en_x-i[0],0,i[2]),':')
+        plt.plot(en_x,en_y)
+        plt.show()
          
-    if calc_step not in [0,1,2,3,4]:
+    if calc_step not in [0,1,2,3,4,5]:
         comm.Abort()
 
 
