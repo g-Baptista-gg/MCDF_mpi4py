@@ -579,40 +579,11 @@ if rank==0:
         directory_name = input('Directory name: ')
         root_dir = os.getcwd()+'/'+directory_name+'/'
         if os.path.exists(root_dir):
-            dir_conf_flag=False
-            while not dir_conf_flag:
-                dir_confirmation = input('Directory already exists. Do you want to carry on with the calculation? (y/n): ')
-                if dir_confirmation == 'y' or dir_confirmation == 'Y':
-                    dir_flag=True
-                    dir_conf_flag=True
-                    if os.path.exists(root_dir+'backup_1hole_configurations.txt') and os.path.exists(root_dir+'backup_2holes_configurations.txt'):
-                        copy_configs_flag=False
-                        while not copy_configs_flag:
-                            copy_config_confirmation = input('Config files already exists. Replace with new configs? (y/n): ')
-                            if copy_config_confirmation == 'y' or copy_config_confirmation == 'Y':
-                                copy_configs_flag = True
-                                shutil.copyfile('1hole_configurations.txt',root_dir+'backup_1hole_configurations.txt')
-                                shutil.copyfile('2holes_configurations.txt',root_dir+'backup_2holes_configurations.txt')
-                                print('Backup files replaced.')
-                            elif copy_config_confirmation == 'n' or copy_config_confirmation == 'N':
-                                copy_configs_flag = True
-                                print('Backup files kept.')
-                            else:
-                                print('Please input a valid option...')
-
-                elif dir_confirmation == 'n' or dir_confirmation == 'N':
-                    os.system('clear')
-                    print('Please select another name for the directory.')
-                    dir_conf_flag=True
-
-
-                else:
-                    print('Please input a valid option...')
+            dir_confirmation = input('Directory already exists. Do you want to carry on with the calculation? (y/n): ')
+            if dir_confirmation == 'y' or 'Y':
+                dir_flag=True
         else:
             dir_flag=True
-            os.makedirs(root_dir)
-            shutil.copyfile('1hole_configurations.txt',root_dir+'backup_1hole_configurations.txt')
-            shutil.copyfile('2holes_configurations.txt',root_dir+'backup_2holes_configurations.txt')
 
     at_no_flag = False
     while not at_no_flag:
@@ -625,7 +596,7 @@ if rank==0:
     
     el_no_flag = False
     while not el_no_flag:
-        electron_number = input('Number of electrons: ') # TODO: calculate from 1hole and 2holes
+        electron_number = input('Number of electrons: ')
         if electron_number.isdigit():
             electron_number = int(electron_number)
             el_no_flag = True
@@ -633,28 +604,7 @@ if rank==0:
             print('Please input a valid integer.')
 
 
-    #print(('-----------------------------------------------------\n|  Computation Mehtods:\t\t\t\t    |\n-----------------------------------------------------\n|  Energy and WF calculations:\t0\t\t    |\n|  Get Parameters:\t\t1\t\t    |\n|  Rates:\t\t\t2\t\t    |\n|  Sums:\t\t\t3 -> Single Thread  |\n|  Get Params + Rates + Sums:\t4 -> Single Thread  |\n|  Plot Spectra:\t\t5 -> Single Thread  |\n-----------------------------------------------------'))
-    print('-----------------------------------------------------\n|  Computation Mehtods:\t\t\t\t    |\n-----------------------------------------------------\n|  Energy and WF calculations:\t0\t\t    |')
-    if os.path.exists(root_dir+'byHand.csv') and os.path.exists(root_dir+'converged.csv'):
-        print('|  Get Parameters:\t\t1\t\t    |')
-        if os.path.exists(root_dir+'all_converged.csv'):
-            print('|  Rates:\t\t\t2\t\t    |')
-            if os.path.exists(root_dir+'rates_auger.csv') and os.path.exists(root_dir+'rates_rad.csv') and os.path.exists(root_dir+'rates_satellite.csv'):
-                print('|  Sums:\t\t\t3 -> Single Thread  |')
-                if os.path.exists(root_dir+'spectrum_auger.csv') and os.path.exists(root_dir+'spectrum_diagram.csv') and os.path.exists(root_dir+'spectrum_satellite.csv'):
-                    print('|  Plot Spectra:\t\t5 -> Single Thread  |')
-                    allowed_calc=[0,1,2,3,4,5,]
-                else:allowed_calc=[0,1,2,3,4]
-
-            else:allowed_calc=[0,1,2,4]
-        
-        else:allowed_calc=[0,1,4]
-        print('|  Get Params + Rates + Sums:\t4 -> Single Thread  |')
-
-    else:
-        allowed_calc=[0]
-    print('-----------------------------------------------------')
-    
+    print(('-----------------------------------------------------\n|  Computation Mehtods:\t\t\t\t    |\n-----------------------------------------------------\n|  Energy and WF calculations:\t0\t\t    |\n|  Get Parameters:\t\t1\t\t    |\n|  Rates:\t\t\t2\t\t    |\n|  Sums:\t\t\t3 -> Single Thread  |\n|  Get Params + Rates + Sums:\t4 -> Single Thread  |\n|  Plot Spectra:\t\t5 -> Single Thread  |\n-----------------------------------------------------'))
     calc_step_flag=False
     while not calc_step_flag:
         calc_step = input('Please enter what computation should be performed: ')
@@ -680,14 +630,22 @@ electron_number = comm.bcast(electron_number,root=0)
 
 calc_step=comm.bcast(calc_step,root=0)
 
+if calc_step==0:
+    rad_config_n_labels = pd.read_csv('1hole_configurations.txt',header=None).values.tolist()
+    for i in rad_config_n_labels:
+        i[1]= 'rad,'+i[1]
 
-rad_config_n_labels = pd.read_csv(root_dir+'backup_1hole_configurations.txt',header=None).values.tolist()
-for i in rad_config_n_labels:
-    i[1]= 'rad,'+i[1]
+    aug_config_n_labels=pd.read_csv('2holes_configurations.txt',header=None).values.tolist()
+    for i in aug_config_n_labels:
+        i[1]= 'aug,'+i[1]
+else:
+    rad_config_n_labels = pd.read_csv(root_dir+'backup_1hole_configurations.txt',header=None).values.tolist()
+    for i in rad_config_n_labels:
+        i[1]= 'rad,'+i[1]
 
-aug_config_n_labels=pd.read_csv(root_dir+'backup_2holes_configurations.txt',header=None).values.tolist()
-for i in aug_config_n_labels:
-    i[1]= 'aug,'+i[1]
+    aug_config_n_labels=pd.read_csv(root_dir+'backup_2holes_configurations.txt',header=None).values.tolist()
+    for i in aug_config_n_labels:
+        i[1]= 'aug,'+i[1]
 
 
 config_n_labels = rad_config_n_labels + aug_config_n_labels
@@ -723,6 +681,20 @@ if rank == 0:
     work_pool=[]
     if calc_step == 0:
         #Setup initial work pool
+        #print('Setup config files.')
+        if not (os.path.exists(root_dir)):
+            os.makedirs(root_dir)
+        shutil.copyfile('1hole_configurations.txt',root_dir+'backup_1hole_configurations.txt')
+        rad_config_n_labels = pd.read_csv('1hole_configurations.txt',header=None).values.tolist()
+        for i in rad_config_n_labels:
+            i[1]= 'rad,'+i[1]
+
+        shutil.copyfile('2holes_configurations.txt',root_dir+'backup_2holes_configurations.txt')
+        aug_config_n_labels=pd.read_csv('2holes_configurations.txt',header=None).values.tolist()
+        for i in aug_config_n_labels:
+            i[1]= 'aug,'+i[1]
+
+        config_n_labels = rad_config_n_labels + aug_config_n_labels
 
 
         for i in config_n_labels:
@@ -737,17 +709,17 @@ if rank == 0:
 
 
         while (len(idle_slaves)<total_ranks-1) or (len(work_pool)>0):
-            print(f'Idle Slaves: {idle_slaves}',flush=True) if len(idle_slaves)>0 else print('',flush=True)
+            #print(f'Idle Slaves: {idle_slaves}',flush=True) if len(idle_slaves)>0 else print('',flush=True)
 
             #pprint.pprint(work_pool)
             if len(work_pool)!=0 and len(idle_slaves)!=0:
-                print(f'Work: {work_pool[0]}\n',flush=True)
+                #print(f'Work: {work_pool[0]}\n',flush=True)
                 # Gives a job from pool to slave.
                 slave_rank = idle_slaves.pop(0)
 
                 comm.send(obj=work_pool.pop(0),dest=int(slave_rank))
             else:
-                print(f'Idle Slaves: {idle_slaves}',flush=True) if len(idle_slaves)>0 else print('',flush=True)
+                #print(f'Idle Slaves: {idle_slaves}',flush=True) if len(idle_slaves)>0 else print('',flush=True)
                 slave_rank, calc_res = str(comm.recv(source=MPI.ANY_SOURCE)).split("|")
                 #print(calc_res)
                 quantum_numbers,calc_res_vals = calc_res.split(';')
@@ -800,17 +772,17 @@ if rank == 0:
             work_pool.append(','.join(i)+';4:')
 
         while (len(idle_slaves)<total_ranks-1) or (len(work_pool)>0):
-            print(f'Idle Slaves: {idle_slaves}',flush=True) if len(idle_slaves)>0 else print('',flush=True)
+            #print(f'Idle Slaves: {idle_slaves}',flush=True) if len(idle_slaves)>0 else print('',flush=True)
 
             #pprint.pprint(work_pool)
             if len(work_pool)!=0 and len(idle_slaves)!=0:
-                print(f'Work: {work_pool[0]}\n',flush=True)
+                #print(f'Work: {work_pool[0]}\n',flush=True)
                 # Gives a job from pool to slave.
                 slave_rank = idle_slaves.pop(0)
                 
                 comm.send(obj=work_pool.pop(0),dest=int(slave_rank))
             else:
-                print(f'Idle Slaves: {idle_slaves}',flush=True) if len(idle_slaves)>0 else print('',flush=True)
+                #print(f'Idle Slaves: {idle_slaves}',flush=True) if len(idle_slaves)>0 else print('',flush=True)
                 slave_rank, calc_res = str(comm.recv(source=MPI.ANY_SOURCE)).split("|")
 
                 quantum_numbers,calc_res_vals = calc_res.split(';')
