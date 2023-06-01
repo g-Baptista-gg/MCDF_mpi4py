@@ -5,8 +5,8 @@ import time,tqdm,re , pprint
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.special import voigt_profile
-import scienceplots
-plt.style.use(['science'])
+#import scienceplots
+#plt.style.use(['science'])
 
 
 # For debugging: mpirun -n $(nproc) xterm -hold -e python runMCDF_MPI.py 
@@ -29,6 +29,14 @@ root_dir=None
 mdfgmeFile = '	   nblipa=75 tmp_dir=./tmp/\n	   f05FileName\n	   0.\n'
 mcdf_exe='mcdfgme2019.exe'
 
+
+
+def is_digit_with_scientific_notation(string):
+    try:
+        float(string)
+        return True
+    except ValueError:
+        return False
 
 
 def qn_to_dir(quantum_numbers,root_dir):
@@ -122,10 +130,83 @@ def check_convergence(f06_file, look_for_orb):
         if look_for_orb:
             failed_orbital = None
             for i in range(len(f06_file)):
-                if 'For orbital' in f06_file[-i-1]:
+                if 'For orbital' in f06_file[-i-1] or 'for orbital' in f06_file[-i-1]:
                     failed_orbital = f06_file[-i-1].split()[2].strip()
                     break
             return False, failed_orbital
+        else:
+            return False
+        
+
+
+def check_convergence_interface(f06_file, look_for_orb):
+    #print(f06_file[-1])
+    if 'Total CPU Time for this job was' in f06_file[-1]:
+        overlap_flag=False
+        max_overlap = 0
+        max_overlap_text=''
+        
+        for i in range(len(f06_file)):
+            if not overlap_flag:
+                if 'Overlap integrals' in f06_file[-i-1]:
+                    overlap_flag=True
+                    j=1
+                    while ("|" in f06_file[-i-1+j] and ">" in f06_file[-i-1+j] and "<" in f06_file[-i-1+j]):
+                        overlaps=f06_file[-i-1+j].split(' >')
+                        for k in overlaps[1:]:
+                            if '<' in k:
+                                k=k.split('<')[0]
+                                overlap= overlaps[0]+'>'
+                            else:
+                                if len(overlaps) ==2 :
+                                    overlap = overlaps[0]+'>'
+                                else:overlap ='<'+ overlaps[1].split('<')[1]+'>'
+                            k=abs(float(k.strip()))
+                        if k>max_overlap:
+                            max_overlap=k
+                            max_overlap_text=overlap
+                        j+=1
+
+            else:
+                if 'ETOT (a.u.)' in f06_file[-i-1]:
+                    _,en1,en2=f06_file[-i].split()
+                    en_diff=abs(float(en1)-float(en2))
+
+                    for k in range(len(f06_file)):
+                        if 'Etot_(Welt.)' in f06_file[-k-1]:
+                            energy = f06_file[-k-1].split()[3].strip()
+                            return True,energy,str(en_diff),str(max_overlap),max_overlap_text
+                    else:
+                        return False
+        else:
+            for i in range(len(f06_file)):
+                if 'ETOT (a.u.)' in f06_file[-i-1]:
+                    _,en1,en2=f06_file[-i].split()
+                    en_diff=abs(float(en1)-float(en2))
+                    if en_diff>1:
+                        #print('Energy diff')
+                        return False
+                    else:
+                        #print('Converged!')
+
+                        for k in range(len(f06_file)):
+                            if 'Etot_(Welt.)' in f06_file[-k-1]:
+                                energy = f06_file[-k-1].split()[3].strip()
+                                return True,energy,str(en_diff),'No Overlaps'
+                        else:
+                            return False
+            
+
+    else:
+        if look_for_orb:
+            failed_orbital = None
+            for i in range(len(f06_file)):
+                if 'For orbital' in f06_file[-i-1] or 'for orbital' in f06_file[-i-1]:
+                    failed_orbital = f06_file[-i-1].split()[2].strip()
+                    break
+            if failed_orbital == None:
+                return False
+            else:return False, failed_orbital
         else:
             return False
                             
@@ -378,6 +459,7 @@ def get_parameters(quantum_numbers):
         return check_convergence_gp(f06_file.readlines())
 
 def get_rate(i_qn,f_qn,trans_type,en_dif):
+    #print(i_qn,f_qn,trans_type,en_dif)
     i_cwd=qn_to_dir(i_qn,root_dir)
     i_hole_type,i_label,i_jj2,i_eig = i_qn.split(',')
 
@@ -430,9 +512,9 @@ def get_rate(i_qn,f_qn,trans_type,en_dif):
 
         if trans_type == 'auger':
             for i in range(len(f06_lines)):
-                    if '(sec-1)' in f06_lines[-i-1]:
+                    if 'For Auger transition of energy' in f06_lines[-i-1] and 'Total rate is' in f06_lines[-i-1]:
                         #print('Auger: ',f06_lines[-i-1].split()[0],flush=True)
-                        rate=f06_lines[-i-1].split()[0]
+                        rate=f06_lines[-i].split()[0].strip()
                         #shutil.rmtree(cwd)
                         return rate
         else:
@@ -641,15 +723,16 @@ if rank==0:
             print('|  Rates:\t\t\t2\t\t    |')
             if os.path.exists(root_dir+'rates_auger.csv') and os.path.exists(root_dir+'rates_rad.csv') and os.path.exists(root_dir+'rates_satellite.csv'):
                 print('|  Sums:\t\t\t3 -> Single Thread  |')
-                if os.path.exists(root_dir+'spectrum_auger.csv') and os.path.exists(root_dir+'spectrum_diagram.csv') and os.path.exists(root_dir+'spectrum_satellite.csv'):
+                if os.path.exists(root_dir+'spectrum_diagram.csv') and os.path.exists(root_dir+'spectrum_satellite.csv'):
                     print('|  Plot Spectra:\t\t5 -> Single Thread  |')
-                    allowed_calc=[0,1,2,3,4,5,]
-                else:allowed_calc=[0,1,2,3,4]
+                    allowed_calc=[0,1,2,3,4,5,6]
+                else:allowed_calc=[0,1,2,3,4,6]
 
-            else:allowed_calc=[0,1,2,4]
+            else:allowed_calc=[0,1,2,4,6]
         
-        else:allowed_calc=[0,1,4]
-        print('|  Get Params + Rates + Sums:\t4 -> Single Thread  |')
+        else:allowed_calc=[0,1,4,6]
+        print('|  Get Params + Rates + Sums:\t4\t\t    |')
+        print('|  State convergence util:\t6\t\t    |')
 
     else:
         allowed_calc=[0]
@@ -660,7 +743,7 @@ if rank==0:
         calc_step = input('Please enter what computation should be performed: ')
         if calc_step.isdigit():
             calc_step=int(calc_step)
-            if calc_step in [0,1,2,3,4,5]:
+            if calc_step in allowed_calc:
                 calc_step_flag = True
             else:print('Please input a valid option')
         else:print('Please input a valid option')
@@ -858,7 +941,7 @@ if rank == 0:
                 if valid_trans:work_pool.append(i_qn+';'+'5:'+trans_type+','+f_qn+','+str(en_dif)+','+i_config+','+f_config)
 
 
-
+        #print(work_pool[0])
         #pbar = tqdm.tqdm(total=len(work_pool),bar_format='{bar:10}')
         total_transitions=len(work_pool)
         print('\n\n\n')
@@ -910,20 +993,21 @@ if rank == 0:
                     trans_type,f_config_type,f_label,f_jj2,f_eig,rate,en_dif,i_config,f_config=calc_res_params.split(',')
                     f_qn=','.join([f_config_type,f_label,f_jj2,f_eig])
 
-                    rate=float(rate)*(float(i_jj2)+1)
+                    #rate=float(rate)*(float(i_jj2)+1)
+                    
 
                     if trans_type == 'diagram':
-                        rad_arr.append([i_label,i_jj2,i_eig,i_config,f_label,f_jj2,f_eig,f_config,rate,en_dif,rate*hbar])
+                        rad_arr.append([i_label,i_jj2,i_eig,i_config,f_label,f_jj2,f_eig,f_config,rate,en_dif])
                         rad_count+=1
                         
                             
                     elif trans_type == 'auger':
-                        aug_arr.append([i_label,i_jj2,i_eig,i_config,f_label,f_jj2,f_eig,f_config,rate,en_dif,rate*hbar])
+                        aug_arr.append([i_label,i_jj2,i_eig,i_config,f_label,f_jj2,f_eig,f_config,rate,en_dif])
                         aug_count+=1
                         
                             
                     else:
-                        sat_arr.append([i_label,i_jj2,i_eig,i_config,f_label,f_jj2,f_eig,f_config,rate,en_dif,rate*hbar])
+                        sat_arr.append([i_label,i_jj2,i_eig,i_config,f_label,f_jj2,f_eig,f_config,rate,en_dif])
                         sat_count+=1
                         
                             
@@ -948,178 +1032,292 @@ if rank == 0:
         pbar_sat.close()
         os.system('clear')
 
-        pd.DataFrame(rad_arr,columns=['Initial Config Label','Initial Config 2jj','Initial Config eig','Initial Config','Final Config Label','Final Config 2jj','Final Config eig','Final Config','Rate (s-1)','Energy (eV)','Energy width (eV)']).sort_values('Rate (s-1)',ascending=False).to_csv(root_dir+'rates_rad.csv',index=False)
-        pd.DataFrame(aug_arr,columns=['Initial Config Label','Initial Config 2jj','Initial Config eig','Initial Config','Final Config Label','Final Config 2jj','Final Config eig','Final Config','Rate (s-1)','Energy (eV)','Energy width (eV)']).sort_values('Rate (s-1)',ascending=False).to_csv(root_dir+'rates_auger.csv',index=False)
-        pd.DataFrame(sat_arr,columns=['Initial Config Label','Initial Config 2jj','Initial Config eig','Initial Config','Final Config Label','Final Config 2jj','Final Config eig','Final Config','Rate (s-1)','Energy (eV)','Energy width (eV)']).sort_values('Rate (s-1)',ascending=False).to_csv(root_dir+'rates_satellite.csv',index=False)
+        pd.DataFrame(rad_arr,columns=['Initial Config Label','Initial Config 2jj','Initial Config eig','Initial Config','Final Config Label','Final Config 2jj','Final Config eig','Final Config','Rate (s-1)','Energy (eV)']).sort_values(['Initial Config Label','Initial Config 2jj','Initial Config eig','Final Config Label','Final Config 2jj','Final Config eig']).to_csv(root_dir+'rates_rad.csv',index=False)
+        pd.DataFrame(aug_arr,columns=['Initial Config Label','Initial Config 2jj','Initial Config eig','Initial Config','Final Config Label','Final Config 2jj','Final Config eig','Final Config','Rate (s-1)','Energy (eV)']).sort_values(['Initial Config Label','Initial Config 2jj','Initial Config eig','Final Config Label','Final Config 2jj','Final Config eig']).to_csv(root_dir+'rates_auger.csv',index=False)
+        pd.DataFrame(sat_arr,columns=['Initial Config Label','Initial Config 2jj','Initial Config eig','Initial Config','Final Config Label','Final Config 2jj','Final Config eig','Final Config','Rate (s-1)','Energy (eV)'],).sort_values(['Initial Config Label','Initial Config 2jj','Initial Config eig','Final Config Label','Final Config 2jj','Final Config eig']).to_csv(root_dir+'rates_satellite.csv',index=False)
     if calc_step == 3 or calc_step ==4:
 
         df_radrate=pd.read_csv(root_dir+'rates_rad.csv')
-        grouped_df_radrate = df_radrate.groupby(['Initial Config Label','Initial Config 2jj','Initial Config eig'])['Rate (s-1)'].sum().reset_index()
+        df_radrate['Partial width']=df_radrate['Rate (s-1)']*(df_radrate['Initial Config 2jj']+1)*hbar
+        grouped_df_radrate_level = df_radrate.groupby(['Initial Config Label','Initial Config 2jj','Initial Config eig'])['Rate (s-1)'].sum().reset_index()
+        grouped_df_radrate_subshell = grouped_df_radrate_level.groupby(['Initial Config Label'])['Rate (s-1)'].sum().reset_index()
+
 
         df_augrate=pd.read_csv(root_dir+'rates_auger.csv')
-        grouped_df_augrate = df_augrate.groupby(['Initial Config Label','Initial Config 2jj','Initial Config eig'])['Rate (s-1)'].sum().reset_index()
+        df_augrate['Partial width']=df_augrate['Rate (s-1)']*(df_augrate['Initial Config 2jj']+1)*hbar
+        grouped_df_augrate_level = df_augrate.groupby(['Initial Config Label','Initial Config 2jj','Initial Config eig'])['Rate (s-1)'].sum().reset_index()
+        grouped_df_augrate_subshell = grouped_df_augrate_level.groupby(['Initial Config Label'])['Rate (s-1)'].sum().reset_index()
 
         df_satrate=pd.read_csv(root_dir+'rates_satellite.csv')
-        grouped_df_satrate = df_satrate.groupby(['Initial Config Label','Initial Config 2jj','Initial Config eig'])['Rate (s-1)'].sum().reset_index()
+        df_satrate['Partial width']=df_satrate['Rate (s-1)']*(df_satrate['Initial Config 2jj']+1)*hbar
+        grouped_df_satrate_level = df_satrate.groupby(['Initial Config Label','Initial Config 2jj','Initial Config eig'])['Rate (s-1)'].sum().reset_index()
+        grouped_df_satrate_subshell = grouped_df_satrate_level.groupby(['Initial Config Label'])['Rate (s-1)'].sum().reset_index()
 
-        radrate_sum_dict={}
-        for index, row in grouped_df_radrate.iterrows():
-            key = f"{row['Initial Config Label']},{row['Initial Config 2jj']},{row['Initial Config eig']}"
-            sum_value = row['Rate (s-1)']
-            radrate_sum_dict[key]=sum_value
-        
-        augrate_sum_dict={}
-        for index, row in grouped_df_augrate.iterrows():
-            key = f"{row['Initial Config Label']},{row['Initial Config 2jj']},{row['Initial Config eig']}"
-            sum_value = row['Rate (s-1)']
-            augrate_sum_dict[key]=sum_value
-
-        satrate_sum_dict={}
-        for index, row in grouped_df_satrate.iterrows():
-            key = f"{row['Initial Config Label']},{row['Initial Config 2jj']},{row['Initial Config eig']}"
-            sum_value = row['Rate (s-1)']
-            satrate_sum_dict[key]=sum_value
-
-        totrate_sum_dict={}
-        for key in radrate_sum_dict:
-            totrate_sum_dict[key]=radrate_sum_dict[key]
-        for key in augrate_sum_dict:
-            if totrate_sum_dict.get(key) is None:
-                totrate_sum_dict[key] = augrate_sum_dict[key]
-            else:
-                totrate_sum_dict[key] += augrate_sum_dict[key]
-        for key in satrate_sum_dict:
-            if totrate_sum_dict.get(key) is None:
-                totrate_sum_dict[key] = satrate_sum_dict[key]
-            else:
-                totrate_sum_dict[key] += satrate_sum_dict[key]
-        
-        
-
-
-        state_multiplicy_dict = {}
+        level_multiplicity_dict = {}
         df_states = pd.read_csv(root_dir+'all_converged.csv')[['Label','2jj']]
         grouped_df_states=df_states.groupby('Label').agg(Count=('2jj', 'count'), Sum_of_2jj=('2jj', 'sum')).reset_index()
 
         grouped_df_states['Multiplicity'] = grouped_df_states['Sum_of_2jj'] + grouped_df_states['Count']
-        print(grouped_df_states)
-        
         grouped_df_states.reset_index(drop=True, inplace=True)
-    
+
+        level_multiplicity_dict={}
         for index, row in grouped_df_states.iterrows():
             key = row['Label']
             multiplicity = row['Multiplicity']
-            state_multiplicy_dict[key]=multiplicity
+            level_multiplicity_dict[key]=multiplicity
         
-        spectrum_header = ['Initial Config Label','Initial Config 2jj','Initial Config eig','Initial Config','Final Config Label','Final Config 2jj','Final Config eig','Final Config','Intensity (a.u.)','Energy (eV)','Energy width (eV)','Branching Ratio']
+        #print(grouped_df_radrate_level)
+        tot_rad_rate_level_dict={}
+        for index, row in grouped_df_radrate_level.iterrows():
+            key = f"{row['Initial Config Label']},{row['Initial Config 2jj']},{row['Initial Config eig']}"
+            value = row['Rate (s-1)']
+            tot_rad_rate_level_dict[key]=value
+        
+
+        tot_rad_rate_subshell_dict={}
+        for index, row in grouped_df_radrate_subshell.iterrows():
+            key = f"{row['Initial Config Label']}"
+            value = row['Rate (s-1)']
+            tot_rad_rate_subshell_dict[key]=value
+        
+        
+        
+        tot_aug_rate_level_dict={}
+        for index, row in grouped_df_augrate_level.iterrows():
+            key = f"{row['Initial Config Label']},{row['Initial Config 2jj']},{row['Initial Config eig']}"
+            value = row['Rate (s-1)']
+            tot_aug_rate_level_dict[key]=value
+        
+        tot_aug_rate_subshell_dict={}
+        for index, row in grouped_df_augrate_subshell.iterrows():
+            key = f"{row['Initial Config Label']}"
+            value = row['Rate (s-1)']
+            tot_aug_rate_subshell_dict[key]=value
+            
+
+        tot_sat_rate_level_dict={}
+        for index, row in grouped_df_satrate_level.iterrows():
+            key = f"{row['Initial Config Label']},{row['Initial Config 2jj']},{row['Initial Config eig']}"
+            value = row['Rate (s-1)']
+            tot_sat_rate_level_dict[key]=value
+
+        tot_sat_rate_subshell_dict={}
+        for index, row in grouped_df_satrate_subshell.iterrows():
+            key = f"{row['Initial Config Label']}"
+            value = row['Rate (s-1)']
+            tot_sat_rate_subshell_dict[key]=value
+            
+
+        tot_rate_level_dict={}
+        for key in tot_rad_rate_level_dict:
+            tot_rate_level_dict[key]=tot_rad_rate_level_dict[key]
+        for key in tot_aug_rate_level_dict:
+            value_rad=tot_rate_level_dict.get(key)
+            if value_rad is None:value_rad=0
+            tot_rate_level_dict[key]=value_rad+tot_aug_rate_level_dict[key]
+        for key in tot_sat_rate_level_dict:
+            value_aug_rad=tot_rate_level_dict.get(key)
+            if value_aug_rad is None:value_aug_rad=0
+            tot_rate_level_dict[key]=value_aug_rad+tot_sat_rate_level_dict[key]
+        
+        tot_rate_subshell_dict={}
+        for key in tot_rad_rate_subshell_dict:
+            tot_rate_subshell_dict[key]=tot_rad_rate_subshell_dict[key]
+        for key in tot_aug_rate_subshell_dict:
+            value_rad=tot_rate_subshell_dict.get(key)
+            if value_rad is None:value_rad=0
+            tot_rate_subshell_dict[key]=value_rad+tot_aug_rate_subshell_dict[key]
+        for key in tot_sat_rate_subshell_dict:
+            value_aug_rad=tot_rate_subshell_dict.get(key)
+            if value_aug_rad is None:value_aug_rad=0
+            tot_rate_subshell_dict[key]=value_aug_rad+tot_sat_rate_subshell_dict[key]
 
 
-        df_radrate['Branching Ratio'] = 0
+
+
+        #pprint.pprint(tot_rad_rate_level_dict)
+        #print('--------------------------------------------')
+        #pprint.pprint(tot_aug_rate_level_dict)
+        #print('--------------------------------------------')
+        #pprint.pprint(tot_rate_level_dict)
+        spectrum_header=['Initial Config Label','Initial Config 2jj','Initial Config eig','Initial Config','Final Config Label','Final Config 2jj','Final Config eig','Final Config','Intensity (a.u.)','Energy (eV)','Energy width (eV)']
+
+        df_radrate = df_radrate.sort_values(by=['Initial Config Label','Initial Config 2jj','Initial Config eig','Final Config Label','Final Config 2jj','Final Config eig'])
         df_radrate_np = df_radrate.values
-
-        
         for i in range(len(df_radrate_np)):
             ini_qn = ','.join([df_radrate_np[i][0],str(df_radrate_np[i][1]),str(df_radrate_np[i][2])])
-            ini_tot_rate = totrate_sum_dict[ini_qn]
-    
+            ini_jj2= df_radrate_np[i][1]
+
             fin_qn = ','.join([df_radrate_np[i][4],str(df_radrate_np[i][5]),str(df_radrate_np[i][6])])
-            fin_tot_rate = totrate_sum_dict.get(fin_qn)
-            
-            ini_jj2=df_radrate_np[i][1]
+            fin_jj2= df_radrate_np[i][5]
 
-            if fin_tot_rate is None:fin_tot_rate = 0
+            branching_ratio=df_radrate_np[i][-3]/tot_rad_rate_level_dict[ini_qn]
+            fluorescence_yield = tot_rad_rate_level_dict[ini_qn]/tot_rate_level_dict[ini_qn]
+            df_radrate_np[i][-3]=(ini_jj2+1)/level_multiplicity_dict[df_radrate_np[i][0]] * branching_ratio * fluorescence_yield
 
-            trans_tot_rate=ini_tot_rate+fin_tot_rate
+            #print(f'{ini_qn} {fin_qn}     {branching_ratio}')
+            ini_tot_rate = tot_rate_level_dict[ini_qn]
+            fin_tot_rate = tot_rate_level_dict.get(fin_qn)
+            if fin_tot_rate is None: fin_tot_rate = 0
 
-            branching_ratio=df_radrate_np[i][8]/trans_tot_rate
-            
-            df_radrate_np[i][10]=hbar*trans_tot_rate # Overwrite partial energy width with total transition Energy width
-            df_radrate_np[i][11]= branching_ratio    # Add Branching Ratio
-
-            multiplicity_ratio = (df_radrate_np[i][1]+1)/state_multiplicy_dict[df_radrate_np[i][0]]
-            
-            df_radrate_np[i][8] = multiplicity_ratio * branching_ratio # Overwrite partial Rate with Intensity in a.u.
+            df_radrate_np[i][-1] = hbar*(ini_tot_rate + fin_tot_rate)  # Calculates transition width
 
         df = pd.DataFrame(df_radrate_np)
-        df.to_csv(root_dir+'spectrum_diagram.csv',header=spectrum_header,index=False)
+        df.to_csv(root_dir+'spectrum_diagram.csv',header=spectrum_header,index=False)   
 
-        df_augrate['Branching Ratio'] = 0
-        df_augrate_np = df_augrate.values
-
-        
-        for i in range(len(df_augrate_np)):
-            ini_qn = ','.join([df_augrate_np[i][0],str(df_augrate_np[i][1]),str(df_augrate_np[i][2])])
-            ini_tot_rate = totrate_sum_dict[ini_qn]
-    
-            fin_qn = ','.join([df_augrate_np[i][4],str(df_augrate_np[i][5]),str(df_augrate_np[i][6])])
-            fin_tot_rate = totrate_sum_dict.get(fin_qn)
-            
-            ini_jj2=df_augrate_np[i][1]
-
-            if fin_tot_rate is None:fin_tot_rate = 0
-
-            trans_tot_rate=ini_tot_rate+fin_tot_rate
-
-            branching_ratio=df_augrate_np[i][8]/trans_tot_rate
-            
-            df_augrate_np[i][10]=hbar*trans_tot_rate # Overwrite partial energy width with total transition Energy width
-            df_augrate_np[i][11]= branching_ratio    # Add Branching Ratio
-
-            multiplicity_ratio = (df_augrate_np[i][1]+1)/state_multiplicy_dict[df_augrate_np[i][0]]
-            
-            df_augrate_np[i][8] = multiplicity_ratio * branching_ratio # Overwrite partial Rate with Intensity in a.u.
-
-        df = pd.DataFrame(df_augrate_np)
-        df.to_csv(root_dir+'spectrum_auger.csv',header=spectrum_header,index=False)
-
-        df_satrate['Branching Ratio'] = 0
-        df_satrate_np = df_satrate.values
-
-        
+        df_satrate = df_satrate.sort_values(by=['Initial Config Label','Initial Config 2jj','Initial Config eig','Final Config Label','Final Config 2jj','Final Config eig'])
+        df_satrate_np=df_satrate.values
         for i in range(len(df_satrate_np)):
+            #print(i)
             ini_qn = ','.join([df_satrate_np[i][0],str(df_satrate_np[i][1]),str(df_satrate_np[i][2])])
-            ini_tot_rate = totrate_sum_dict[ini_qn]
-    
+            ini_jj2= df_satrate_np[i][1]
+
             fin_qn = ','.join([df_satrate_np[i][4],str(df_satrate_np[i][5]),str(df_satrate_np[i][6])])
-            fin_tot_rate = totrate_sum_dict.get(fin_qn)
-            
-            ini_jj2=df_satrate_np[i][1]
+            fin_jj2= df_satrate_np[i][5]
 
-            if fin_tot_rate is None:fin_tot_rate = 0
+            branching_ratio=df_satrate_np[i][-3]/tot_sat_rate_level_dict[ini_qn]
+            fluorescence_yield = tot_rad_rate_subshell_dict[df_satrate_np[i][0].split('_')[0]]/tot_rate_subshell_dict[df_satrate_np[i][0].split('_')[0]]
+            df_satrate_np[i][-3]=(ini_jj2+1)/level_multiplicity_dict[df_satrate_np[i][0]] * branching_ratio * fluorescence_yield
 
-            trans_tot_rate=ini_tot_rate+fin_tot_rate
-
-            branching_ratio=df_satrate_np[i][8]/trans_tot_rate
-            
-            df_satrate_np[i][10]=hbar*trans_tot_rate # Overwrite partial energy width with total transition Energy width
-            df_satrate_np[i][11]= branching_ratio    # Add Branching Ratio
-
-            multiplicity_ratio = (df_satrate_np[i][1]+1)/state_multiplicy_dict[df_satrate_np[i][0]]
-            
-            df_satrate_np[i][8] = multiplicity_ratio * branching_ratio # Overwrite partial Rate with Intensity in a.u.
-
+            ini_tot_rate = tot_rate_level_dict[ini_qn]
+            fin_tot_rate = tot_rate_level_dict.get(fin_qn)
+            if fin_tot_rate is None: fin_tot_rate = 0
+            if ini_tot_rate + fin_tot_rate ==0:print(ini_tot_rate + fin_tot_rate)
+            df_satrate_np[i][-1] = hbar*(ini_tot_rate + fin_tot_rate)/fluorescence_yield
+        
         df = pd.DataFrame(df_satrate_np)
-        df.to_csv(root_dir+'spectrum_satellite.csv',header=spectrum_header,index=False)
+        df.to_csv(root_dir+'spectrum_satellite.csv',header=spectrum_header,index=False)   
+
+
+        
+        
         
         
         
         
     if calc_step == 5:
         fig,ax=plt.subplots(1,1,figsize=(5,4))
-        df=pd.read_csv(root_dir+'spectrum_diagram.csv')
-        df=df[['Energy (eV)','Intensity (a.u.)','Energy width (eV)']]
-        df_np=df.to_numpy()
+
+        df_diag=pd.read_csv(root_dir+'spectrum_diagram.csv')
+        df_diag=df_diag[['Energy (eV)','Intensity (a.u.)','Energy width (eV)','Initial Config Label','Final Config Label']]
+
+        df_sat=pd.read_csv(root_dir+'spectrum_satellite.csv')
+        df_sat=df_sat[['Energy (eV)','Intensity (a.u.)','Energy width (eV)','Initial Config Label','Final Config Label']]
+
+        df_np=np.concatenate((df_diag.to_numpy(),df_sat.to_numpy()),axis=0)
         pprint.pprint(df_np)
-        en_x=np.linspace(7900,8100,10000)
+        en_x=np.linspace(7950,8200,10000)
         en_y=en_x*0
-        for i in df_np:
+        for i in df_diag.to_numpy():
             en_y+=i[1]*voigt_profile(en_x-i[0],0,i[2])
             if i[0]>en_x[0] and i[0]<en_x[-1]:
                 plt.plot(en_x,i[1]*voigt_profile(en_x-i[0],0,i[2]),':')
         plt.plot(en_x,en_y)
+        plt.legend()
         plt.show()
+
+    if calc_step == 6:
+        overlap_thresh_flag=False
+        while not overlap_thresh_flag:
+            overlap_thresh=input('Please set the overlap threshold: ')
+            if is_digit_with_scientific_notation(overlap_thresh):
+                overlap_thresh_flag = True
+                overlap_thresh = float(overlap_thresh)
+            else: print('Please input a valid value:')
+
+        en_thresh_flag=False
+        while not en_thresh_flag:
+            en_thresh=input('Please set the energy threshold: ')
+            if is_digit_with_scientific_notation(en_thresh):
+                en_thresh_flag = True
+                en_thresh = float(en_thresh)
+            else: print('Please input a valid value.')
+        
+
+        what_states_flag=False
+        while not what_states_flag:
+            what_states=input('What states should be included? (1 -Failed; 2 -All): ')
+            if what_states=='1':
+                states_array=byHand_array=pd.read_csv(root_dir+'byHand.csv').values
+                what_states_flag=True
+            elif what_states=='2':
+                byHand_array=pd.read_csv(root_dir+'byHand.csv')
+                converged_array = pd.read_csv(root_dir+'converged.csv')[['Config type','Label','2jj','eig']]
+                states_array=pd.concat([byHand_array,converged_array]).values
+                what_states_flag=True
+            else:print('Please input a valid option.')
+
+
+        for i in states_array:
+            print(i)
+            hole_type,label,jj2,eig=i.astype(str)
+            cwd=qn_to_dir(','.join([hole_type,label,jj2,eig]),root_dir)
+            os.system('clear')
+            with open(cwd+label+'_'+jj2+'_'+eig+'.f06','r',encoding='latin-1') as f06_file:
+                result = check_convergence_interface(f06_file.readlines(),True)
+                if type(result)==bool:
+                    result_bool=False
+                else: result_bool=result[0]
+                if not result_bool:
+                    print(f'------------------------------------------------------\nHole Type: {hole_type}    Label: {label}    2jj: {jj2}   Eig: {eig}\n------------------------------------------------------')
+                    conv_flag=False
+                    if type(result)==bool:
+                        print('Failed Convergence.')
+                    else:
+                        print(f'Orbital {result[1]} failed.')
+                else:
+                    en_dif=float(result[2])
+                    max_overlap=float(result[3])
+                    overlap=result[4].replace(' ','')
+                    conv_flag=True
+                    if en_dif>en_thresh or max_overlap>overlap_thresh:
+                        print(f'------------------------------------------------------\nHole Type: {hole_type}    Label: {label}    2jj: {jj2}   Eig: {eig}\n------------------------------------------------------')
+                        print(f'Energy: {result[1]}\tEn.Dif: {result[2]}\nMax Overlap: {result[3]}\t\t{overlap}')
+                        conv_flag=False
+            if not conv_flag:
+                print('\n\nOptions:\n- e : Edit f05 file\n- l : Read f06 file\n- r : Run MCDF\n- n : Next state\n- x : Exit Interface')
+                while True:
+                    option = input('Insert chosen option: ')
+                    if option == 'e':
+                        os.system('nano '+cwd+label+'_'+jj2+'_'+eig+'.f05')
+                    if option == 'l':
+                        os.system('less '+cwd+label+'_'+jj2+'_'+eig+'.f06')
+                    if option == 'r':
+                        subprocess.call(mcdf_exe,cwd=cwd)
+                    if option == 'n':
+                        break
+                    if option == 'x':
+                        for i in idle_slaves:
+                            comm.send(';-5:',dest=int(i))
+                        MPI.Finalize()
+                        exit()
+                    os.system('clear')
+                    if option in ['e','l','r'] or option not in ['n','x']:
+                            print(f'------------------------------------------------------\nHole Type: {hole_type}    Label: {label}    2jj: {jj2}   Eig: {eig}\n------------------------------------------------------')
+                            with open(cwd+label+'_'+jj2+'_'+eig+'.f06','r',encoding='latin-1') as f06_file:
+                                result = check_convergence_interface(f06_file.readlines(),True)
+                                if type(result)==bool:
+                                    result_bool=False
+                                else: result_bool=result[0]
+                            if not result_bool:
+                                if type(result)==bool:
+                                    print('Failed Convergence.')
+                                else:
+                                    print(f'Orbital {result[1]} failed.')
+                            else:
+                                overlap=result[4].replace(' ','')
+                                print(f'Energy: {result[1]}\tEn.Dif: {result[2]}\nMax Overlap: {result[3]}\t\t{overlap}')
+                            print('\n\nOptions:\n- e : Edit f05 file\n- l : Read f06 file\n- r : Run MCDF\n- n : Next state\n- x : Exit Interface')
+
+
+
+                        
+                        
+                        
+                        
+
          
-    if calc_step not in [0,1,2,3,4,5]:
+    if calc_step not in allowed_calc:
         comm.Abort()
 
 
