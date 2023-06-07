@@ -88,7 +88,7 @@ def check_convergence(f06_file, look_for_orb):
                             if '<' in k:
                                 k=k.split('<')[0]
                             k=abs(float(k.strip()))
-                        if k>max_overlap: max_overlap=k
+                            if k>max_overlap: max_overlap=k
                         j+=1
                     #if max_overlap>1E-5: return False
             else:
@@ -162,9 +162,9 @@ def check_convergence_interface(f06_file, look_for_orb):
                                     overlap = overlaps[0]+'>'
                                 else:overlap ='<'+ overlaps[1].split('<')[1]+'>'
                             k=abs(float(k.strip()))
-                        if k>max_overlap:
-                            max_overlap=k
-                            max_overlap_text=overlap
+                            if k>max_overlap:
+                                max_overlap=k
+                                max_overlap_text=overlap
                         j+=1
 
             else:
@@ -875,8 +875,17 @@ if rank == 0:
         pd.DataFrame(converged_list,columns=['Config type','Label','2jj','eig','Energy','En diff','Max Overlap']).sort_values(by=['Config type','Label','2jj','eig'],ascending=[False,True,True,True]).to_csv(root_dir+'converged.csv',index=False)
 
 
-        
+    calc_sat_opt=None
     if calc_step==1 or calc_step==4:
+        while calc_sat_opt is None:
+            sat_opt=input('Calculate satellite transitions?(y/n): ')
+            if sat_opt=='y' or sat_opt=='Y':
+                calc_sat_opt = True
+            elif sat_opt=='n' or sat_opt=='N':
+                calc_sat_opt = False
+            else:
+                print('Please input a valid option...')
+
         final_state_res=[]
         df = pd.read_csv(root_dir+'byHand.csv',dtype=str).values.tolist()+pd.read_csv(root_dir+'converged.csv',dtype=str)[['Config type','Label','2jj','eig']].values.tolist()
         for i in df:
@@ -907,8 +916,18 @@ if rank == 0:
 
         pd.DataFrame(final_state_res,columns=['Config type','Label','2jj','eig','Configuration','Energy','En diff','Max Overlap']).sort_values(by=['Config type','Label','2jj','eig'],ascending=[False,True,True,True]).to_csv(root_dir+'all_converged.csv',index=False)
     
-
+    
     if calc_step == 2 or calc_step==4:
+        while calc_sat_opt is None:
+            sat_opt=input('Calculate satellite transitions?(y/n): ')
+            if sat_opt=='y' or sat_opt=='Y':
+                calc_sat_opt = True
+            elif sat_opt=='n' or sat_opt=='N':
+                calc_sat_opt = False
+            else:
+                print('Please input a valid option...')
+        
+
         total_rad_trans,total_aug_trans,total_sat_trans=0,0,0
         df = pd.read_csv(root_dir + 'all_converged.csv').sort_values('Energy',ascending=True)[['Config type','Label','2jj','eig','Energy','Configuration']].to_numpy(dtype=str)
 
@@ -935,8 +954,11 @@ if rank == 0:
                     trans_type = 'auger'
                     total_aug_trans+=1
                 else:
-                    trans_type = 'satellite'
-                    total_sat_trans+=1
+                    if calc_sat_opt:
+                        trans_type = 'satellite'
+                        total_sat_trans+=1
+                    else:
+                        valid_trans=False
                 
                 if valid_trans:work_pool.append(i_qn+';'+'5:'+trans_type+','+f_qn+','+str(en_dif)+','+i_config+','+f_config)
 
@@ -951,8 +973,9 @@ if rank == 0:
         pbar_rad.set_description('Diagram Transitions\t')
         pbar_aug = tqdm.tqdm(total=total_aug_trans,bar_format='{l_bar}{bar:20}| {n_fmt}/{total_fmt}{postfix}',position=1,leave=False)
         pbar_aug.set_description('Auger Transitions\t')
-        pbar_sat = tqdm.tqdm(total=total_sat_trans,bar_format='{l_bar}{bar:20}| {n_fmt}/{total_fmt}{postfix}',position=2,leave=False)
-        pbar_sat.set_description('Satellite Transitions\t')
+        if calc_sat_opt:
+            pbar_sat = tqdm.tqdm(total=total_sat_trans,bar_format='{l_bar}{bar:20}| {n_fmt}/{total_fmt}{postfix}',position=2,leave=False)
+            pbar_sat.set_description('Satellite Transitions\t')
 
         rad_arr=[]
         aug_arr=[]
@@ -1019,8 +1042,9 @@ if rank == 0:
                         rad_count=0
                         pbar_aug.update(aug_count)
                         aug_count=0
-                        pbar_sat.update(sat_count)
-                        sat_count=0
+                        if calc_sat_opt:
+                            pbar_sat.update(sat_count)
+                            sat_count=0
 
 
 
@@ -1029,29 +1053,42 @@ if rank == 0:
         pbar_all.close()
         pbar_rad.close()
         pbar_aug.close()
-        pbar_sat.close()
+        if calc_sat_opt:pbar_sat.close()
         os.system('clear')
 
         pd.DataFrame(rad_arr,columns=['Initial Config Label','Initial Config 2jj','Initial Config eig','Initial Config','Final Config Label','Final Config 2jj','Final Config eig','Final Config','Rate (s-1)','Energy (eV)']).sort_values(['Initial Config Label','Initial Config 2jj','Initial Config eig','Final Config Label','Final Config 2jj','Final Config eig']).to_csv(root_dir+'rates_rad.csv',index=False)
         pd.DataFrame(aug_arr,columns=['Initial Config Label','Initial Config 2jj','Initial Config eig','Initial Config','Final Config Label','Final Config 2jj','Final Config eig','Final Config','Rate (s-1)','Energy (eV)']).sort_values(['Initial Config Label','Initial Config 2jj','Initial Config eig','Final Config Label','Final Config 2jj','Final Config eig']).to_csv(root_dir+'rates_auger.csv',index=False)
-        pd.DataFrame(sat_arr,columns=['Initial Config Label','Initial Config 2jj','Initial Config eig','Initial Config','Final Config Label','Final Config 2jj','Final Config eig','Final Config','Rate (s-1)','Energy (eV)'],).sort_values(['Initial Config Label','Initial Config 2jj','Initial Config eig','Final Config Label','Final Config 2jj','Final Config eig']).to_csv(root_dir+'rates_satellite.csv',index=False)
+        if calc_sat_opt:pd.DataFrame(sat_arr,columns=['Initial Config Label','Initial Config 2jj','Initial Config eig','Initial Config','Final Config Label','Final Config 2jj','Final Config eig','Final Config','Rate (s-1)','Energy (eV)'],).sort_values(['Initial Config Label','Initial Config 2jj','Initial Config eig','Final Config Label','Final Config 2jj','Final Config eig']).to_csv(root_dir+'rates_satellite.csv',index=False)
     if calc_step == 3 or calc_step ==4:
 
+        while calc_sat_opt is None:
+            sat_opt=input('Calculate satellite transitions?(y/n): ')
+            if sat_opt=='y' or sat_opt=='Y':
+                calc_sat_opt = True
+            elif sat_opt=='n' or sat_opt=='N':
+                calc_sat_opt = False
+            else:
+                print('Please input a valid option...')
+
         df_radrate=pd.read_csv(root_dir+'rates_rad.csv')
+        df_radrate['Rate (s-1)'] = pd.to_numeric(df_radrate['Rate (s-1)'],errors='coerce').fillna(0)
         df_radrate['Partial width']=df_radrate['Rate (s-1)']*(df_radrate['Initial Config 2jj']+1)*hbar
         grouped_df_radrate_level = df_radrate.groupby(['Initial Config Label','Initial Config 2jj','Initial Config eig'])['Rate (s-1)'].sum().reset_index()
         grouped_df_radrate_subshell = grouped_df_radrate_level.groupby(['Initial Config Label'])['Rate (s-1)'].sum().reset_index()
 
 
         df_augrate=pd.read_csv(root_dir+'rates_auger.csv')
+        df_augrate['Rate (s-1)'] = pd.to_numeric(df_augrate['Rate (s-1)'],errors='coerce').fillna(0)
         df_augrate['Partial width']=df_augrate['Rate (s-1)']*(df_augrate['Initial Config 2jj']+1)*hbar
         grouped_df_augrate_level = df_augrate.groupby(['Initial Config Label','Initial Config 2jj','Initial Config eig'])['Rate (s-1)'].sum().reset_index()
         grouped_df_augrate_subshell = grouped_df_augrate_level.groupby(['Initial Config Label'])['Rate (s-1)'].sum().reset_index()
 
-        df_satrate=pd.read_csv(root_dir+'rates_satellite.csv')
-        df_satrate['Partial width']=df_satrate['Rate (s-1)']*(df_satrate['Initial Config 2jj']+1)*hbar
-        grouped_df_satrate_level = df_satrate.groupby(['Initial Config Label','Initial Config 2jj','Initial Config eig'])['Rate (s-1)'].sum().reset_index()
-        grouped_df_satrate_subshell = grouped_df_satrate_level.groupby(['Initial Config Label'])['Rate (s-1)'].sum().reset_index()
+        if calc_sat_opt:
+            df_satrate=pd.read_csv(root_dir+'rates_satellite.csv')
+            df_satrate['Rate (s-1)'] = pd.to_numeric(df_satrate['Rate (s-1)'],errors='coerce').fillna(0)
+            df_satrate['Partial width']=df_satrate['Rate (s-1)']*(df_satrate['Initial Config 2jj']+1)*hbar
+            grouped_df_satrate_level = df_satrate.groupby(['Initial Config Label','Initial Config 2jj','Initial Config eig'])['Rate (s-1)'].sum().reset_index()
+            grouped_df_satrate_subshell = grouped_df_satrate_level.groupby(['Initial Config Label'])['Rate (s-1)'].sum().reset_index()
 
         level_multiplicity_dict = {}
         df_states = pd.read_csv(root_dir+'all_converged.csv')[['Label','2jj']]
@@ -1094,18 +1131,18 @@ if rank == 0:
             value = row['Rate (s-1)']
             tot_aug_rate_subshell_dict[key]=value
             
+        if calc_sat_opt:
+            tot_sat_rate_level_dict={}
+            for index, row in grouped_df_satrate_level.iterrows():
+                key = f"{row['Initial Config Label']},{row['Initial Config 2jj']},{row['Initial Config eig']}"
+                value = row['Rate (s-1)']
+                tot_sat_rate_level_dict[key]=value
 
-        tot_sat_rate_level_dict={}
-        for index, row in grouped_df_satrate_level.iterrows():
-            key = f"{row['Initial Config Label']},{row['Initial Config 2jj']},{row['Initial Config eig']}"
-            value = row['Rate (s-1)']
-            tot_sat_rate_level_dict[key]=value
-
-        tot_sat_rate_subshell_dict={}
-        for index, row in grouped_df_satrate_subshell.iterrows():
-            key = f"{row['Initial Config Label']}"
-            value = row['Rate (s-1)']
-            tot_sat_rate_subshell_dict[key]=value
+            tot_sat_rate_subshell_dict={}
+            for index, row in grouped_df_satrate_subshell.iterrows():
+                key = f"{row['Initial Config Label']}"
+                value = row['Rate (s-1)']
+                tot_sat_rate_subshell_dict[key]=value
             
 
         tot_rate_level_dict={}
@@ -1115,10 +1152,11 @@ if rank == 0:
             value_rad=tot_rate_level_dict.get(key)
             if value_rad is None:value_rad=0
             tot_rate_level_dict[key]=value_rad+tot_aug_rate_level_dict[key]
-        for key in tot_sat_rate_level_dict:
-            value_aug_rad=tot_rate_level_dict.get(key)
-            if value_aug_rad is None:value_aug_rad=0
-            tot_rate_level_dict[key]=value_aug_rad+tot_sat_rate_level_dict[key]
+        if calc_sat_opt:
+            for key in tot_sat_rate_level_dict:
+                value_aug_rad=tot_rate_level_dict.get(key)
+                if value_aug_rad is None:value_aug_rad=0
+                tot_rate_level_dict[key]=value_aug_rad+tot_sat_rate_level_dict[key]
         
         tot_rate_subshell_dict={}
         for key in tot_rad_rate_subshell_dict:
@@ -1127,10 +1165,11 @@ if rank == 0:
             value_rad=tot_rate_subshell_dict.get(key)
             if value_rad is None:value_rad=0
             tot_rate_subshell_dict[key]=value_rad+tot_aug_rate_subshell_dict[key]
-        for key in tot_sat_rate_subshell_dict:
-            value_aug_rad=tot_rate_subshell_dict.get(key)
-            if value_aug_rad is None:value_aug_rad=0
-            tot_rate_subshell_dict[key]=value_aug_rad+tot_sat_rate_subshell_dict[key]
+        if calc_sat_opt:
+            for key in tot_sat_rate_subshell_dict:
+                value_aug_rad=tot_rate_subshell_dict.get(key)
+                if value_aug_rad is None:value_aug_rad=0
+                tot_rate_subshell_dict[key]=value_aug_rad+tot_sat_rate_subshell_dict[key]
 
 
 
@@ -1164,29 +1203,29 @@ if rank == 0:
 
         df = pd.DataFrame(df_radrate_np)
         df.to_csv(root_dir+'spectrum_diagram.csv',header=spectrum_header,index=False)   
+        if calc_sat_opt:
+            df_satrate = df_satrate.sort_values(by=['Initial Config Label','Initial Config 2jj','Initial Config eig','Final Config Label','Final Config 2jj','Final Config eig'])
+            df_satrate_np=df_satrate.values
+            for i in range(len(df_satrate_np)):
+                #print(i)
+                ini_qn = ','.join([df_satrate_np[i][0],str(df_satrate_np[i][1]),str(df_satrate_np[i][2])])
+                ini_jj2= df_satrate_np[i][1]
 
-        df_satrate = df_satrate.sort_values(by=['Initial Config Label','Initial Config 2jj','Initial Config eig','Final Config Label','Final Config 2jj','Final Config eig'])
-        df_satrate_np=df_satrate.values
-        for i in range(len(df_satrate_np)):
-            #print(i)
-            ini_qn = ','.join([df_satrate_np[i][0],str(df_satrate_np[i][1]),str(df_satrate_np[i][2])])
-            ini_jj2= df_satrate_np[i][1]
+                fin_qn = ','.join([df_satrate_np[i][4],str(df_satrate_np[i][5]),str(df_satrate_np[i][6])])
+                fin_jj2= df_satrate_np[i][5]
 
-            fin_qn = ','.join([df_satrate_np[i][4],str(df_satrate_np[i][5]),str(df_satrate_np[i][6])])
-            fin_jj2= df_satrate_np[i][5]
+                branching_ratio=df_satrate_np[i][-3]/tot_sat_rate_level_dict[ini_qn]
+                fluorescence_yield = tot_rad_rate_subshell_dict[df_satrate_np[i][0].split('_')[0]]/tot_rate_subshell_dict[df_satrate_np[i][0].split('_')[0]]
+                df_satrate_np[i][-3]=(ini_jj2+1)/level_multiplicity_dict[df_satrate_np[i][0]] * branching_ratio * fluorescence_yield
 
-            branching_ratio=df_satrate_np[i][-3]/tot_sat_rate_level_dict[ini_qn]
-            fluorescence_yield = tot_rad_rate_subshell_dict[df_satrate_np[i][0].split('_')[0]]/tot_rate_subshell_dict[df_satrate_np[i][0].split('_')[0]]
-            df_satrate_np[i][-3]=(ini_jj2+1)/level_multiplicity_dict[df_satrate_np[i][0]] * branching_ratio * fluorescence_yield
+                ini_tot_rate = tot_rate_level_dict[ini_qn]
+                fin_tot_rate = tot_rate_level_dict.get(fin_qn)
+                if fin_tot_rate is None: fin_tot_rate = 0
+                if ini_tot_rate + fin_tot_rate ==0:print(ini_tot_rate + fin_tot_rate)
+                df_satrate_np[i][-1] = hbar*(ini_tot_rate + fin_tot_rate)/fluorescence_yield
 
-            ini_tot_rate = tot_rate_level_dict[ini_qn]
-            fin_tot_rate = tot_rate_level_dict.get(fin_qn)
-            if fin_tot_rate is None: fin_tot_rate = 0
-            if ini_tot_rate + fin_tot_rate ==0:print(ini_tot_rate + fin_tot_rate)
-            df_satrate_np[i][-1] = hbar*(ini_tot_rate + fin_tot_rate)/fluorescence_yield
-        
-        df = pd.DataFrame(df_satrate_np)
-        df.to_csv(root_dir+'spectrum_satellite.csv',header=spectrum_header,index=False)   
+            df = pd.DataFrame(df_satrate_np)
+            df.to_csv(root_dir+'spectrum_satellite.csv',header=spectrum_header,index=False)   
 
 
         
