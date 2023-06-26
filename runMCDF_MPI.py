@@ -269,7 +269,7 @@ def check_convergence_gp(f06_file):
                             k=0
                             while '%' in f06_file[-i+k]:
                                 if float(f06_file[-i+k].split()[-2])>max_config_val:
-                                    
+                                    max_config_val = float(f06_file[-i+k].split()[-2])
                                     max_config=' '.join(f06_file[-i+k].split()[:-2])
                                 k+=1
                             config=config+' '+max_config
@@ -877,14 +877,15 @@ if rank == 0:
 
     calc_sat_opt=None
     if calc_step==1 or calc_step==4:
-        while calc_sat_opt is None:
-            sat_opt=input('Calculate satellite transitions?(y/n): ')
-            if sat_opt=='y' or sat_opt=='Y':
-                calc_sat_opt = True
-            elif sat_opt=='n' or sat_opt=='N':
-                calc_sat_opt = False
-            else:
-                print('Please input a valid option...')
+        if calc_step ==4:
+            while calc_sat_opt is None:
+                sat_opt=input('Calculate satellite transitions?(y/n): ')
+                if sat_opt=='y' or sat_opt=='Y':
+                    calc_sat_opt = True
+                elif sat_opt=='n' or sat_opt=='N':
+                    calc_sat_opt = False
+                else:
+                    print('Please input a valid option...')
 
         final_state_res=[]
         df = pd.read_csv(root_dir+'byHand.csv',dtype=str).values.tolist()+pd.read_csv(root_dir+'converged.csv',dtype=str)[['Config type','Label','2jj','eig']].values.tolist()
@@ -1060,15 +1061,15 @@ if rank == 0:
         pd.DataFrame(aug_arr,columns=['Initial Config Label','Initial Config 2jj','Initial Config eig','Initial Config','Final Config Label','Final Config 2jj','Final Config eig','Final Config','Rate (s-1)','Energy (eV)']).sort_values(['Initial Config Label','Initial Config 2jj','Initial Config eig','Final Config Label','Final Config 2jj','Final Config eig']).to_csv(root_dir+'rates_auger.csv',index=False)
         if calc_sat_opt:pd.DataFrame(sat_arr,columns=['Initial Config Label','Initial Config 2jj','Initial Config eig','Initial Config','Final Config Label','Final Config 2jj','Final Config eig','Final Config','Rate (s-1)','Energy (eV)'],).sort_values(['Initial Config Label','Initial Config 2jj','Initial Config eig','Final Config Label','Final Config 2jj','Final Config eig']).to_csv(root_dir+'rates_satellite.csv',index=False)
     if calc_step == 3 or calc_step ==4:
-
-        while calc_sat_opt is None:
-            sat_opt=input('Calculate satellite transitions?(y/n): ')
-            if sat_opt=='y' or sat_opt=='Y':
-                calc_sat_opt = True
-            elif sat_opt=='n' or sat_opt=='N':
-                calc_sat_opt = False
-            else:
-                print('Please input a valid option...')
+        if calc_step ==4:
+            while calc_sat_opt is None:
+                sat_opt=input('Calculate satellite transitions?(y/n): ')
+                if sat_opt=='y' or sat_opt=='Y':
+                    calc_sat_opt = True
+                elif sat_opt=='n' or sat_opt=='N':
+                    calc_sat_opt = False
+                else:
+                    print('Please input a valid option...')
 
         df_radrate=pd.read_csv(root_dir+'rates_rad.csv')
         df_radrate['Rate (s-1)'] = pd.to_numeric(df_radrate['Rate (s-1)'],errors='coerce').fillna(0)
@@ -1347,13 +1348,6 @@ if rank == 0:
                                 overlap=result[4].replace(' ','')
                                 print(f'Energy: {result[1]}\tEn.Dif: {result[2]}\nMax Overlap: {result[3]}\t\t{overlap}')
                             print('\n\nOptions:\n- e : Edit f05 file\n- l : Read f06 file\n- r : Run MCDF\n- n : Next state\n- x : Exit Interface')
-
-
-
-                        
-                        
-                        
-                        
 
          
     if calc_step not in allowed_calc:
