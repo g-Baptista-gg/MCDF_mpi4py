@@ -1338,7 +1338,7 @@ if rank == 0:
                             pane_tail.send_keys('\x03')
                             pane_tail.send_keys('less '+cwd+label+'_'+jj2+'_'+eig+'.f06')
                     if option == 'n':
-                        pane_tail.send_keys('q')
+                        if is_in_tmux():pane_tail.send_keys('q')
                         break
                     if option == 'x':
                         for i in idle_slaves:
