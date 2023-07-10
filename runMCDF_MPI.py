@@ -1,6 +1,6 @@
 from mpi4py import MPI
 import pandas as pd
-import os, subprocess, shutil, sys
+import os, subprocess, shutil, sys , libtmux
 import time,tqdm,re , pprint
 import numpy as np
 import matplotlib.pyplot as plt
@@ -1286,13 +1286,20 @@ if rank == 0:
                 states_array=pd.concat([byHand_array,converged_array]).values
                 what_states_flag=True
             else:print('Please input a valid option.')
+        def is_in_tmux():
+            return 'TMUX' in os.environ
 
-
+        server = libtmux.Server()
+        if is_in_tmux():
+            session = server.attached_sessions[0]
+            window = session.attached_window
+            pane_tail=window.split_window(attach=False,vertical=False)
         for i in states_array:
             print(i)
             hole_type,label,jj2,eig=i.astype(str)
             cwd=qn_to_dir(','.join([hole_type,label,jj2,eig]),root_dir)
             os.system('clear')
+            if is_in_tmux():pane_tail.send_keys('less '+cwd+label+'_'+jj2+'_'+eig+'.f06')
             with open(cwd+label+'_'+jj2+'_'+eig+'.f06','r',encoding='latin-1') as f06_file:
                 result = check_convergence_interface(f06_file.readlines(),True)
                 if type(result)==bool:
@@ -1323,12 +1330,20 @@ if rank == 0:
                     if option == 'l':
                         os.system('less '+cwd+label+'_'+jj2+'_'+eig+'.f06')
                     if option == 'r':
+                        if is_in_tmux():
+                            pane_tail.send_keys('q')
+                            pane_tail.send_keys('tail -F '+cwd+label+'_'+jj2+'_'+eig+'.f06')
                         subprocess.call(mcdf_exe,cwd=cwd)
+                        if is_in_tmux():
+                            pane_tail.send_keys('\x03')
+                            pane_tail.send_keys('less '+cwd+label+'_'+jj2+'_'+eig+'.f06')
                     if option == 'n':
+                        pane_tail.send_keys('q')
                         break
                     if option == 'x':
                         for i in idle_slaves:
                             comm.send(';-5:',dest=int(i))
+                        if is_in_tmux():pane_tail.cmd('kill-pane')
                         MPI.Finalize()
                         exit()
                     os.system('clear')
@@ -1348,7 +1363,7 @@ if rank == 0:
                                 overlap=result[4].replace(' ','')
                                 print(f'Energy: {result[1]}\tEn.Dif: {result[2]}\nMax Overlap: {result[3]}\t\t{overlap}')
                             print('\n\nOptions:\n- e : Edit f05 file\n- l : Read f06 file\n- r : Run MCDF\n- n : Next state\n- x : Exit Interface')
-
+        if is_in_tmux():pane_tail.cmd('kill-pane')
          
     if calc_step not in allowed_calc:
         comm.Abort()
