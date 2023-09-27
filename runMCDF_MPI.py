@@ -1,12 +1,13 @@
 from mpi4py import MPI
 import pandas as pd
-import os, subprocess, shutil, sys , libtmux
-import time,tqdm,re , pprint
-import numpy as np
-import matplotlib.pyplot as plt
-from scipy.special import voigt_profile
-#import scienceplots
-#plt.style.use(['science'])
+import os, subprocess, shutil, libtmux
+import time,tqdm,re 
+# import pprint, sys 
+# import numpy as np
+# import matplotlib.pyplot as plt
+# from scipy.special import voigt_profile
+# import scienceplots
+# plt.style.use(['science'])
 
 
 # For debugging: mpirun -n $(nproc) xterm -hold -e python runMCDF_MPI.py 
@@ -724,8 +725,8 @@ if rank==0:
             if os.path.exists(root_dir+'rates_auger.csv') and os.path.exists(root_dir+'rates_rad.csv') and os.path.exists(root_dir+'rates_satellite.csv'):
                 print('|  Sums:\t\t\t3 -> Single Thread  |')
                 if os.path.exists(root_dir+'spectrum_diagram.csv') and os.path.exists(root_dir+'spectrum_satellite.csv'):
-                    print('|  Plot Spectra:\t\t5 -> Single Thread  |')
-                    allowed_calc=[0,1,2,3,4,5,6]
+                    print('|  Plot Spectra (not currently available):\t\t5 -> Single Thread  |')
+                    allowed_calc =[0,1,2,3,4,5,6]
                 else:allowed_calc=[0,1,2,3,4,6]
 
             else:allowed_calc=[0,1,2,4,6]
@@ -1235,26 +1236,26 @@ if rank == 0:
         
         
         
-    if calc_step == 5:
-        fig,ax=plt.subplots(1,1,figsize=(5,4))
+    # if calc_step == 5:
+    #     fig,ax=plt.subplots(1,1,figsize=(5,4))
 
-        df_diag=pd.read_csv(root_dir+'spectrum_diagram.csv')
-        df_diag=df_diag[['Energy (eV)','Intensity (a.u.)','Energy width (eV)','Initial Config Label','Final Config Label']]
+    #     df_diag=pd.read_csv(root_dir+'spectrum_diagram.csv')
+    #     df_diag=df_diag[['Energy (eV)','Intensity (a.u.)','Energy width (eV)','Initial Config Label','Final Config Label']]
 
-        df_sat=pd.read_csv(root_dir+'spectrum_satellite.csv')
-        df_sat=df_sat[['Energy (eV)','Intensity (a.u.)','Energy width (eV)','Initial Config Label','Final Config Label']]
+    #     df_sat=pd.read_csv(root_dir+'spectrum_satellite.csv')
+    #     df_sat=df_sat[['Energy (eV)','Intensity (a.u.)','Energy width (eV)','Initial Config Label','Final Config Label']]
 
-        df_np=np.concatenate((df_diag.to_numpy(),df_sat.to_numpy()),axis=0)
-        pprint.pprint(df_np)
-        en_x=np.linspace(7950,8200,10000)
-        en_y=en_x*0
-        for i in df_diag.to_numpy():
-            en_y+=i[1]*voigt_profile(en_x-i[0],0,i[2])
-            if i[0]>en_x[0] and i[0]<en_x[-1]:
-                plt.plot(en_x,i[1]*voigt_profile(en_x-i[0],0,i[2]),':')
-        plt.plot(en_x,en_y)
-        plt.legend()
-        plt.show()
+    #     df_np=np.concatenate((df_diag.to_numpy(),df_sat.to_numpy()),axis=0)
+    #     pprint.pprint(df_np)
+    #     en_x=np.linspace(7950,8200,10000)
+    #     en_y=en_x*0
+    #     for i in df_diag.to_numpy():
+    #         en_y+=i[1]*voigt_profile(en_x-i[0],0,i[2])
+    #         if i[0]>en_x[0] and i[0]<en_x[-1]:
+    #             plt.plot(en_x,i[1]*voigt_profile(en_x-i[0],0,i[2]),':')
+    #     plt.plot(en_x,en_y)
+    #     plt.legend()
+    #     plt.show()
 
     if calc_step == 6:
         overlap_thresh_flag=False
